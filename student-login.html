@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Login - AACEM Coaching Institute</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --secondary: #8a8d93;
+      --light: #f7f7f7;
+      --dark: #1c1e21;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Navbar --- */
+    .navbar {
+      background-color: var(--primary);
+      padding: 15px 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .navbar .navbar-brand {
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.4rem;
+    }
+
+    .navbar .navbar-brand:hover {
+      color: #ffc107;
+    }
+
+    /* --- Login Box --- */
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      margin: 50px auto;
+      padding: 2rem;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .student-header {
+      background: linear-gradient(45deg, #0d6efd, #6610f2);
+      color: white;
+      padding: 1.2rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 500;
+    }
+
+    .btn-primary:hover {
+      background-color: #084298;
+      border-color: #084298;
+    }
+
+    .password-toggle {
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      color: #6c757d;
+    }
+
+    .password-toggle:hover {
+      color: var(--primary);
+    }
+
+    /* --- Footer --- */
+    footer {
+      background-color: #1c1e21;
+      color: white;
+      padding: 40px 0 20px 0;
+      margin-top: auto;
+    }
+
+    footer a {
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    footer a:hover {
+      color: #ffc107;
+    }
+
+    .social-icons a {
+      color: white;
+      font-size: 18px;
+      margin-right: 15px;
+      transition: color 0.3s;
+    }
+
+    .social-icons a:hover {
+      color: #ffc107;
+    }
+
+    .alert {
+      border-radius: 10px;
+      border: none;
+    }
+
+    .login-links {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header/Navbar -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container">
+      <a class="navbar-brand" href="index.html">
+        <i class="fas fa-graduation-cap me-2"></i>AACEM Institute
+      </a>
+    </div>
+  </nav>
+
+  <!-- Login Box -->
+  <div class="login-container">
+    <div class="student-header text-center">
+      <i class="fas fa-user-graduate fa-3x mb-2"></i>
+      <h3>Student Login</h3>
+      <p class="mb-0">Access your student dashboard</p>
+    </div>
+
+    <!-- Login Form -->
+    <form id="studentLoginForm">
+      <div class="mb-3">
+        <label for="studentId" class="form-label">Student ID</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-id-card"></i></span>
+          <input type="text" class="form-control" placeholder="Enter your Student ID" id="studentId" name="student_id" required>
+        </div>
+        <div class="form-text">Enter your registered Student ID</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="password" class="form-label">Password</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-lock"></i></span>
+          <input type="password" class="form-control" placeholder="Enter your password" id="password" name="password" required>
+          <button type="button" class="btn password-toggle" id="togglePassword">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+        <div class="form-text">Enter your password</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 py-2 mb-3">
+        <span class="button-text">Login to Dashboard</span>
+      </button>
+    </form>
+
+    <!-- Links -->
+    <div class="login-links">
+      <a href="forgot-password.html" class="d-block mb-2">Forgot Password?</a>
+      
+    </div>
+
+    <!-- Alert Message -->
+    <div id="alertMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="row">
+        <!-- About Section -->
+        <div class="col-md-4 mb-4">
+          <h4>AACEM Institute</h4>
+          <p>Providing quality education in computer courses and academic classes since 2010.</p>
+          <p>
+            <strong>Address:</strong> XYZ Road, Patna, Bihar - 800001 <br>
+            <strong>Phone:</strong> +91 9876543210 <br>
+            <strong>Email:</strong> info@aacem.com
+          </p>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="col-md-2 mb-4">
+          <h5>Quick Links</h5>
+          <ul class="list-unstyled">
+            <li><a href="index.html" class="text-white">Home</a></li>
+            <li><a href="courses.html" class="text-white">Courses</a></li>
+            <li><a href="index.html#admissions" class="text-white">Admissions</a></li>
+            <li><a href="index.html#features" class="text-white">Features</a></li>
+            <li><a href="index.html#contact" class="text-white">Contact</a></li>
+          </ul>
+        </div>
+
+        <!-- Courses -->
+        <div class="col-md-3 mb-4">
+          <h5>Courses</h5>
+          <ul class="list-unstyled">
+            <li><a href="#" class="text-white">Computer Courses</a></li>
+            <li><a href="#" class="text-white">BSEB Classes</a></li>
+            <li><a href="#" class="text-white">CBSE Classes</a></li>
+            <li><a href="#" class="text-white">Crash Courses</a></li>
+            <li><a href="#" class="text-white">Download Prospectus</a></li>
+          </ul>
+        </div>
+
+        <!-- Contact -->
+        <div class="col-md-3 mb-4">
+          <h5>Get in Touch</h5>
+          <p>Have questions? Contact us directly.</p>
+          <a href="contact.html" class="btn btn-primary">Contact Us</a>
+
+          <!-- Social Media -->
+          <div class="social-icons mt-3">
+            <a href="#"><i class="fab fa-facebook-f"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+            <a href="#"><i class="fab fa-youtube"></i></a>
+          </div>
+        </div>
+      </div>
+
+      <hr class="mt-4 mb-4">
+
+      <!-- Legal Links -->
+      <div class="row">
+        <div class="col-md-6 text-center text-md-start mb-2">
+          <p>© <span id="year"></span> AACEM Coaching Institute. All Rights Reserved.</p>
+        </div>
+        <div class="col-md-6 text-center text-md-end">
+          <a href="#" class="text-white me-3">Privacy Policy</a>
+          <a href="#" class="text-white">Terms & Conditions</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // API Configuration
+    const API_BASE_URL = 'http://localhost:5000/api';
+
+    // Password toggle functionality
+    document.getElementById('togglePassword').addEventListener('click', function() {
+      const passwordInput = document.getElementById('password');
+      const icon = this.querySelector('i');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+      } else {
+        passwordInput.type = 'password';
+        icon.className = 'fas fa-eye';
+      }
+    });
+
+    // Show alert message
+    function showAlert(message, type = 'danger') {
+      const alertDiv = document.getElementById('alertMessage');
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.textContent = message;
+      alertDiv.style.display = 'block';
+      
+      // Auto hide success messages after 3 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          alertDiv.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    // Hide alert message
+    function hideAlert() {
+      document.getElementById('alertMessage').style.display = 'none';
+    }
+
+    // Student Login Form
+    document.getElementById('studentLoginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const studentId = document.getElementById('studentId').value.trim().toUpperCase();
+      const password = document.getElementById('password').value;
+      const submitBtn = this.querySelector('button[type="submit"]');
+      const buttonText = submitBtn.querySelector('.button-text');
+
+      // Validation
+      if (!studentId) {
+        showAlert('Please enter your Student ID');
+        return;
+      }
+
+      if (!password) {
+        showAlert('Please enter your password');
+        return;
+      }
+
+      // Button state
+      submitBtn.disabled = true;
+      buttonText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Logging in...`;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/student-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            student_id: studentId,
+            password: password
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showAlert('✅ Login successful! Redirecting...', 'success');
+          
+          // Store student data in localStorage
+          localStorage.setItem('studentToken', result.token || 'student-auth');
+          localStorage.setItem('studentData', JSON.stringify(result.student));
+          
+          // Redirect to dashboard after short delay
+          setTimeout(() => {
+            window.location.href = 'dashboard-student.html';
+          }, 1000);
+          
+        } else {
+          showAlert(`❌ ${result.message || 'Invalid Student ID or Password'}`);
+          submitBtn.disabled = false;
+          buttonText.textContent = 'Login to Dashboard';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        showAlert('⚠️ Network error. Please check your connection and try again.');
+        submitBtn.disabled = false;
+        buttonText.textContent = 'Login to Dashboard';
+      }
+    });
+
+    // Set current year in footer
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

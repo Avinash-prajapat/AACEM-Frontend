@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AACEM Coaching Institute - Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #3a0ca3;
+            --secondary: #4361ee;
+            --accent: #4cc9f0;
+            --success: #4bb543;
+            --danger: #dc3545;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 76px;
+            background-color: #f8f9fa;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .hero-section {
+            background: linear-gradient(rgba(58, 12, 163, 0.9), rgba(67, 97, 238, 0.9)), url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?ixlib=rb-4.0.3') center/cover;
+            color: white;
+            padding: 160px 0 100px;
+            text-align: center;
+            margin-top: -76px;
+        }
+        
+        .feature-icon {
+            font-size: 2.8rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        
+        .module-section {
+            padding: 80px 0;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+            color: var(--primary);
+            position: relative;
+            font-weight: 700;
+            font-size: 2.5rem;
+        }
+        
+        .section-title:after {
+            content: '';
+            display: block;
+            width: 100px;
+            height: 5px;
+            background: var(--accent);
+            margin: 20px auto;
+            border-radius: 3px;
+        }
+        
+        /* Course Cards Styling */
+        .course-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 35px;
+            margin: 50px 0;
+        }
+        
+        .course-card {
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.1);
+            transition: all 0.4s ease;
+            border: none;
+            height: 100%;
+            position: relative;
+        }
+        
+        .course-card:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        
+        .course-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 20px 50px rgba(58, 12, 163, 0.2);
+        }
+        
+        .course-content {
+            padding: 35px 30px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .course-title {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            color: var(--primary);
+            line-height: 1.3;
+            font-weight: 700;
+        }
+        
+        .course-code {
+            font-size: 0.95rem;
+            color: var(--secondary);
+            font-weight: 600;
+            margin-bottom: 18px;
+            background: rgba(67, 97, 238, 0.1);
+            padding: 8px 16px;
+            border-radius: 25px;
+            display: inline-block;
+            border: 1px solid rgba(67, 97, 238, 0.2);
+        }
+        
+        .course-description {
+            color: #64748b;
+            line-height: 1.7;
+            margin-bottom: 25px;
+            flex-grow: 1;
+            font-size: 1.05rem;
+        }
+        
+        .course-duration, .course-fee {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            color: #555;
+            font-size: 1rem;
+        }
+        
+        .course-duration i, .course-fee i {
+            margin-right: 12px;
+            color: var(--primary);
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        
+        .course-fee {
+            font-weight: 700;
+            color: var(--success);
+            font-size: 1.15rem;
+        }
+        
+        .course-fee i {
+            color: var(--success);
+        }
+        
+        /* Academic Classes Styling */
+        .class-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin: 50px 0;
+        }
+        
+        .class-card {
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            padding: 35px 30px;
+            border-radius: 20px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.1);
+            border: none;
+            transition: all 0.4s ease;
+            height: 100%;
+            position: relative;
+        }
+        
+        .class-card:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        
+        .class-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 18px 45px rgba(58, 12, 163, 0.15);
+        }
+        
+        .class-card h3 {
+            color: var(--primary);
+            margin-bottom: 18px;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+        
+        .class-subjects {
+            color: #64748b;
+            line-height: 1.7;
+            margin-bottom: 25px;
+            font-size: 1.05rem;
+        }
+        
+        .faculty {
+            display: flex;
+            align-items: center;
+            color: #333;
+            font-weight: 600;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            font-size: 1.05rem;
+        }
+        
+        .faculty i {
+            margin-right: 15px;
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+        
+        /* Button Styling */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            border-radius: 50px;
+            padding: 14px 40px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(58, 12, 163, 0.3);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(58, 12, 163, 0.4);
+        }
+        
+        /* Dashboard Cards */
+        .dashboard-card {
+            text-align: center;
+            padding: 40px 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: none;
+            transition: transform 0.3s ease;
+            height: 100%;
+            background: white;
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+        }
+        
+        .dashboard-card .icon {
+            font-size: 3.5rem;
+            margin-bottom: 25px;
+            color: var(--primary);
+        }
+        
+        /* Form Styling */
+        .form-control {
+            border-radius: 12px;
+            padding: 14px 20px;
+            border: 2px solid #e2e8f0;
+            font-size: 1.05rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 0.3rem rgba(58, 12, 163, 0.1);
+        }
+        
+        /* Contact Form */
+        .contact-form {
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        
+        /* Footer */
+        .footer {
+            background: linear-gradient(135deg, #1a202c, #2d3748);
+            color: white;
+            padding: 60px 0 25px;
+            margin-top: 50px;
+        }
+        
+        .footer h5 {
+            color: #fff;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .footer a {
+            color: #cbd5e0;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .footer a:hover {
+            color: var(--accent);
+        }
+        
+        .social-icons a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 45px;
+            height: 45px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            margin-right: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .social-icons a:hover {
+            background: var(--primary);
+            transform: translateY(-3px);
+        }
+        
+        /* Alert Styling */
+        .alert {
+            border-radius: 15px;
+            border: none;
+            font-weight: 500;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .course-cards, .class-cards {
+                grid-template-columns: 1fr;
+                gap: 25px;
+            }
+            
+            .hero-section {
+                padding: 120px 0 80px;
+            }
+            
+            .module-section {
+                padding: 60px 0;
+            }
+            
+            .course-content, .class-card {
+                padding: 25px 20px;
+            }
+            
+            .section-title {
+                font-size: 2rem;
+            }
+            
+            .contact-form {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-graduation-cap me-2"></i>AACEM Institute
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link active" href="index.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#courses-preview">Courses</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+                </ul>
+                <div>
+                    <a href="choose-login.html" class="btn btn-outline-light me-2">Login</a>
+                    <a href="choose-registration.html" class="btn btn-light">Register</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="display-3 fw-bold mb-4">AASTHA COMPUTER EDUCATION MISSION</h1>
+            <p class="lead mb-4 fs-4">Transforming Education with Technology and Expertise</p>
+            <p class="mb-4 fs-5">Computer Courses • Academic Classes • BSEB & CBSE Coaching</p>
+            <a href="#courses-preview" class="btn btn-light btn-lg mt-3 px-5 py-3">
+                <i class="fas fa-search me-2"></i>Explore Our Courses
+            </a>
+        </div>
+    </section>
+
+    <!-- Features Overview -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-md-3 col-6 mb-4">
+                    <i class="fas fa-laptop-code feature-icon"></i>
+                    <h4>Computer Courses</h4>
+                    <p class="text-muted">DCA, ADCA, Tally, MS Office and more</p>
+                </div>
+                <div class="col-md-3 col-6 mb-4">
+                    <i class="fas fa-book-open feature-icon"></i>
+                    <h4>Academic Classes</h4>
+                    <p class="text-muted">Class 9-12 for BSEB & CBSE boards</p>
+                </div>
+                <div class="col-md-3 col-6 mb-4">
+                    <i class="fas fa-chalkboard-teacher feature-icon"></i>
+                    <h4>Expert Faculty</h4>
+                    <p class="text-muted">Qualified and experienced teachers</p>
+                </div>
+                <div class="col-md-3 col-6 mb-4">
+                    <i class="fas fa-chart-line feature-icon"></i>
+                    <h4>Performance Tracking</h4>
+                    <p class="text-muted">Monitor progress with advanced analytics</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Courses Preview -->
+    <section id="courses-preview" class="module-section bg-light">
+        <div class="container">
+            <h2 class="section-title">Our Courses</h2>
+
+            <!-- Computer Courses -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <h3 class="text-center mb-4" style="color: var(--primary); font-size: 2rem;">
+                        <i class="fas fa-laptop-code me-3"></i>Computer Courses
+                    </h3>
+                </div>
+
+                <!-- Computer Course Cards Container -->
+                <div id="computer-courses-container" class="course-cards">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="visually-hidden">Loading courses...</span>
+                        </div>
+                        <p class="mt-3 text-muted fs-5">Loading computer courses...</p>
+                    </div>
+                </div>
+
+                <!-- View All Button -->
+                <div class="text-center mt-4">
+                    <a href="courses.html" class="btn btn-primary btn-lg">
+                        <i class="fas fa-list me-2"></i>View All Computer Courses
+                    </a>
+                </div>
+            </div>
+
+            <!-- Academic Courses -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="text-center mb-4" style="color: var(--primary); font-size: 2rem;">
+                        <i class="fas fa-book-open me-3"></i>Academic Classes
+                    </h3>
+                </div>
+
+                <!-- Academic Cards Container -->
+                <div id="academic-courses-container" class="class-cards">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="visually-hidden">Loading courses...</span>
+                        </div>
+                        <p class="mt-3 text-muted fs-5">Loading academic courses...</p>
+                    </div>
+                </div>
+
+                <!-- View All Button -->
+                <div class="text-center mt-4">
+                    <a href="courses.html" class="btn btn-primary btn-lg">
+                        <i class="fas fa-list me-2"></i>View All Academic Courses
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="module-section">
+        <div class="container">
+            <h2 class="section-title">Key Features</h2>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card dashboard-card">
+                        <div class="icon"><i class="fas fa-user-graduate"></i></div>
+                        <h4>Student Management</h4>
+                        <p class="text-muted">Complete student lifecycle from admission to certification</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card dashboard-card">
+                        <div class="icon"><i class="fas fa-chalkboard-teacher"></i></div>
+                        <h4>Teacher Management</h4>
+                        <p class="text-muted">Manage teacher profiles, assignments, and performance</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card dashboard-card">
+                        <div class="icon"><i class="fas fa-money-bill-wave"></i></div>
+                        <h4>Fee Management</h4>
+                        <p class="text-muted">Track fees with online payment integration</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="module-section bg-light">
+        <div class="container">
+            <h2 class="section-title">Get In Touch</h2>
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="contact-form">
+                        <h4 class="mb-4" style="color: var(--primary);">Send us a Message</h4>
+                        <form id="contactForm">
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Full Name</label>
+                                <input type="text" class="form-control" id="fullName" placeholder="Enter your full name" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Email Address</label>
+                                <input type="email" class="form-control" id="email" placeholder="Enter your email" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Phone Number</label>
+                                <input type="tel" class="form-control" id="phone" placeholder="Enter your phone number" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Subject</label>
+                                <input type="text" class="form-control" id="subject" placeholder="Enter subject" required>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Message</label>
+                                <textarea class="form-control" id="message" rows="5" placeholder="Enter your message" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-paper-plane me-2"></i>Send Message
+                            </button>
+                        </form>
+                        <div id="formMessage" class="mt-3"></div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="contact-form h-100">
+                        <h4 class="mb-4" style="color: var(--primary);">Contact Information</h4>
+                        <div class="mb-4">
+                            <h5><i class="fas fa-map-marker-alt me-3 text-primary"></i>Our Address</h5>
+                            <p class="ms-5">123 Education Street, Patna, Bihar - 800001</p>
+                        </div>
+                        <div class="mb-4">
+                            <h5><i class="fas fa-phone me-3 text-primary"></i>Phone Number</h5>
+                            <p class="ms-5">+91 98765 43210</p>
+                        </div>
+                        <div class="mb-4">
+                            <h5><i class="fas fa-envelope me-3 text-primary"></i>Email Address</h5>
+                            <p class="ms-5">info@aaceminstitute.com</p>
+                        </div>
+                        <div class="mb-4">
+                            <h5><i class="fas fa-clock me-3 text-primary"></i>Working Hours</h5>
+                            <p class="ms-5">Monday - Saturday: 8:00 AM - 8:00 PM</p>
+                        </div>
+                        <div class="mt-5">
+                            <h5 class="mb-3">Follow Us</h5>
+                            <div class="social-icons">
+                                <a href="#" class="text-white"><i class="fab fa-facebook-f"></i></a>
+                                <a href="#" class="text-white"><i class="fab fa-twitter"></i></a>
+                                <a href="#" class="text-white"><i class="fab fa-instagram"></i></a>
+                                <a href="#" class="text-white"><i class="fab fa-linkedin-in"></i></a>
+                                <a href="#" class="text-white"><i class="fab fa-youtube"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <!-- About Section -->
+                <div class="col-md-4 mb-4">
+                    <h4>AACEM Institute</h4>
+                    <p>Providing quality education in computer courses and academic classes since 2010.</p>
+                    <p>
+                        <strong>Address:</strong> XYZ Road, Patna, Bihar - 800001 <br>
+                        <strong>Phone:</strong> +91 9876543210 <br>
+                        <strong>Email:</strong> info@aacem.com
+                    </p>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="col-md-2 mb-4">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="#courses-preview">Courses</a></li>
+                        <li><a href="#admissions">Admissions</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+
+                <!-- Courses -->
+                <div class="col-md-3 mb-4">
+                    <h5>Courses</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#">Computer Courses</a></li>
+                        <li><a href="#">BSEB Classes</a></li>
+                        <li><a href="#">CBSE Classes</a></li>
+                        <li><a href="#">Crash Courses</a></li>
+                        <li><a href="#">Download Prospectus</a></li>
+                    </ul>
+                </div>
+
+                <!-- Newsletter -->
+                <div class="col-md-3 mb-4">
+                    <h5>Get in Touch</h5>
+                    <p>Have questions? Contact us directly.</p>
+                    <a href="#contact" class="btn btn-primary">Contact Us</a>
+
+                    <!-- Social Media -->
+                    <div class="social-icons mt-3">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="mt-4 mb-4" style="border-color: #374151;">
+
+            <!-- Legal Links -->
+            <div class="row">
+                <div class="col-md-6 text-center text-md-start mb-2">
+                    <p>© <span id="year"></span> AACEM Coaching Institute. All Rights Reserved.</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <a href="#" class="text-white me-3">Privacy Policy</a>
+                    <a href="#" class="text-white">Terms & Conditions</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:5000/api';
+
+        // Main JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, starting course fetch...');
+            
+            // Set current year in footer
+            document.getElementById('year').textContent = new Date().getFullYear();
+            
+            // Load courses
+            loadCourses();
+            
+            // Contact form handling
+            const contactForm = document.getElementById('contactForm');
+            if (contactForm) {
+                contactForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    submitContactForm();
+                });
+            }
+
+            // Smooth scrolling
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+
+        // Load courses from API
+        async function loadCourses() {
+            console.log('Fetching courses from API...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/courses`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Courses API Response:', result);
+                
+                if (result.success && result.courses && Array.isArray(result.courses)) {
+                    console.log(`Total courses found: ${result.courses.length}`);
+                    
+                    // Filter active courses by category
+                    const computerCourses = result.courses.filter(course => 
+                        course.category === 'computer' && course.is_active !== false
+                    );
+                    
+                    const academicCourses = result.courses.filter(course => 
+                        course.category === 'academic' && course.is_active !== false
+                    );
+                    
+                    console.log(`Computer courses: ${computerCourses.length}`);
+                    console.log(`Academic courses: ${academicCourses.length}`);
+                    
+                    renderComputerCourses(computerCourses);
+                    renderAcademicCourses(academicCourses);
+                    
+                } else {
+                    console.error('No courses data found in response');
+                    showError('No courses available at the moment.');
+                }
+                
+            } catch (error) {
+                console.error('Error loading courses:', error);
+                showError('Failed to load courses. Please try again later.');
+            }
+        }
+
+        // Submit contact form
+        async function submitContactForm() {
+            const form = document.getElementById('contactForm');
+            const formMessage = document.getElementById('formMessage');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            const formData = {
+                full_name: document.getElementById('fullName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                subject: document.getElementById('subject').value.trim(),
+                message: document.getElementById('message').value.trim()
+            };
+            
+            // Basic validation
+            if (!formData.full_name || !formData.email || !formData.phone || !formData.subject || !formData.message) {
+                showFormMessage('Please fill in all fields.', 'danger');
+                return;
+            }
+            
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.email)) {
+                showFormMessage('Please enter a valid email address.', 'danger');
+                return;
+            }
+            
+            // Phone validation
+            const phoneRegex = /^[0-9]{10}$/;
+            if (!phoneRegex.test(formData.phone.replace(/\D/g, ''))) {
+                showFormMessage('Please enter a valid 10-digit phone number.', 'danger');
+                return;
+            }
+            
+            try {
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+                
+                const response = await fetch(`${API_BASE_URL}/contact`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showFormMessage('Thank you for your message! We will get back to you soon.', 'success');
+                    form.reset();
+                } else {
+                    showFormMessage(result.message || 'Failed to send message. Please try again.', 'danger');
+                }
+                
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                showFormMessage('Network error. Please check your connection and try again.', 'danger');
+            } finally {
+                // Reset button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Message';
+            }
+        }
+
+        // Show form message
+        function showFormMessage(message, type) {
+            const formMessage = document.getElementById('formMessage');
+            formMessage.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        // Render computer courses
+        function renderComputerCourses(courses) {
+            const container = document.getElementById('computer-courses-container');
+            
+            if (!courses || courses.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-laptop-code fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">No computer courses available</h5>
+                        <p class="text-muted">Check back later for new courses</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            courses.forEach(course => {
+                const durationText = getDurationText(course.duration);
+                const feeAmount = parseFloat(course.fee_amount || 0);
+                
+                html += `
+                    <div class="course-card">
+                        <div class="course-content">
+                            <h3 class="course-title">${course.course_name}</h3>
+                            <span class="course-code">${course.course_code}</span>
+                            <p class="course-description">${course.description || 'Comprehensive course covering essential topics and practical skills.'}</p>
+                            <div class="mt-auto">
+                                <div class="course-duration">
+                                    <i class="far fa-clock"></i>
+                                    <span>Duration: ${durationText}</span>
+                                </div>
+                                <div class="course-fee">
+                                    <i class="fas fa-rupee-sign"></i>
+                                    <span>₹${feeAmount.toLocaleString('en-IN')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Render academic courses
+        function renderAcademicCourses(courses) {
+            const container = document.getElementById('academic-courses-container');
+            
+            if (!courses || courses.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-book-open fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">No academic courses available</h5>
+                        <p class="text-muted">Check back later for new courses</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            courses.forEach(course => {
+                const durationText = getDurationText(course.duration);
+                const feeAmount = parseFloat(course.fee_amount || 0);
+                const facultyInfo = getFacultyInfo(course.course_name);
+                
+                html += `
+                    <div class="class-card">
+                        <h3>${course.course_name}</h3>
+                        <span class="course-code">${course.course_code}</span>
+                        <p class="class-subjects">${course.description || 'Comprehensive academic program designed for excellent results.'}</p>
+                        <div class="course-duration">
+                            <i class="far fa-clock"></i>
+                            <span>Duration: ${durationText}</span>
+                        </div>
+                        <div class="course-fee">
+                            <i class="fas fa-rupee-sign"></i>
+                            <span>₹${feeAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div class="faculty">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <span>${facultyInfo}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Helper functions
+        function getDurationText(duration) {
+            if (duration === 12) return '12 Months';
+            if (duration === 6) return '6 Months';
+            if (duration === 3) return '3 Months';
+            if (duration === 4) return '4 Months';
+            if (duration === 1) return '1 Month';
+            return `${duration} Months`;
+        }
+
+        function getFacultyInfo(courseName) {
+            const lowerName = courseName.toLowerCase();
+            
+            if (lowerName.includes('ix') || lowerName.includes('x')) {
+                return 'Multiple Subject Experts';
+            } else if (lowerName.includes('xi') || lowerName.includes('xii')) {
+                if (lowerName.includes('science')) {
+                    return 'Science Department Faculty';
+                } else if (lowerName.includes('commerce')) {
+                    return 'Commerce Department Faculty';
+                }
+            }
+            
+            return 'Specialized Faculty Team';
+        }
+
+        function showError(message) {
+            const computerContainer = document.getElementById('computer-courses-container');
+            const academicContainer = document.getElementById('academic-courses-container');
+            
+            const errorHtml = `
+                <div class="col-12 text-center py-5">
+                    <div class="alert alert-danger mx-auto" style="max-width: 500px;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${message}
+                    </div>
+                    <button class="btn btn-primary mt-3" onclick="loadCourses()">
+                        <i class="fas fa-redo me-2"></i>Try Again
+                    </button>
+                </div>
+            `;
+            
+            if (computerContainer) computerContainer.innerHTML = errorHtml;
+            if (academicContainer) academicContainer.innerHTML = errorHtml;
+        }
+
+        // Make functions globally available
+        window.loadCourses = loadCourses;
+    </script>
+</body>
+</html>

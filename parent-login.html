@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Login - AACEM Coaching Institute</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --secondary: #8a8d93;
+      --light: #f7f7f7;
+      --dark: #1c1e21;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Navbar --- */
+    .navbar {
+      background-color: var(--primary);
+      padding: 15px 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .navbar .navbar-brand {
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.4rem;
+    }
+
+    .navbar .navbar-brand:hover {
+      color: #ffc107;
+    }
+
+    /* --- Login Box --- */
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      margin: 50px auto;
+      padding: 2rem;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .parent-header {
+      background: linear-gradient(45deg, #0d6efd, #6610f2);
+      color: white;
+      padding: 1.2rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 500;
+    }
+
+    .btn-primary:hover {
+      background-color: #084298;
+      border-color: #084298;
+    }
+
+    /* --- Footer --- */
+    footer {
+      background-color: #1c1e21;
+      color: white;
+      padding: 40px 0 20px 0;
+      margin-top: auto;
+    }
+
+    footer a {
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    footer a:hover {
+      color: #ffc107;
+    }
+
+    .social-icons a {
+      color: white;
+      font-size: 18px;
+      margin-right: 15px;
+      transition: color 0.3s;
+    }
+
+    .social-icons a:hover {
+      color: #ffc107;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header/Navbar -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container">
+      <a class="navbar-brand" href="#">AACEM Institute</a>
+    </div>
+  </nav>
+
+  <!-- Login Box -->
+  <div class="login-container">
+    <div class="parent-header text-center">
+      <i class="fas fa-user-friends fa-3x mb-2"></i>
+      <h3>Parent Login</h3>
+    </div>
+
+    <form id="parentLoginForm">
+      <!-- Username -->
+      <div class="mb-3">
+        <label for="parentUsername" class="form-label">Username</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-user"></i></span>
+          <input type="text" class="form-control" placeholder="Enter your username" id="parentUsername" name="username" required>
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="mb-3">
+        <label for="parentPassword" class="form-label">Password</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-lock"></i></span>
+          <input type="password" class="form-control" placeholder="Enter your password" id="parentPassword" name="password" required>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn btn-primary w-100 py-2">
+        <span class="button-text">Login</span>
+      </button>
+
+      <!-- Links -->
+      <div class="text-center mt-3">
+        <a href="#">Forgot Password?</a>
+      </div>
+
+      <hr>
+
+      <div class="text-center">
+        <p>Don't have an account? <a href="parent-registration.html">Register here</a></p>
+      </div>
+    </form>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="row">
+        <!-- About Section -->
+        <div class="col-md-4 mb-4">
+          <h4>AACEM Institute</h4>
+          <p>Providing quality education in computer courses and academic classes since 2010.</p>
+          <p>
+            <strong>Address:</strong> XYZ Road, Patna, Bihar - 800001 <br>
+            <strong>Phone:</strong> +91 9876543210 <br>
+            <strong>Email:</strong> info@aacem.com
+          </p>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="col-md-2 mb-4">
+          <h5>Quick Links</h5>
+          <ul class="list-unstyled">
+            <li><a href="index.html" class="text-white">Home</a></li>
+            <li><a href="courses.html" class="text-white">Courses</a></li>
+            <li><a href="index.html#admissions" class="text-white">Admissions</a></li>
+            <li><a href="index.html#features" class="text-white">Features</a></li>
+            <li><a href="index.html#contact" class="text-white">Contact</a></li>
+          </ul>
+        </div>
+
+        <!-- Courses -->
+        <div class="col-md-3 mb-4">
+          <h5>Courses</h5>
+          <ul class="list-unstyled">
+            <li><a href="#" class="text-white">Computer Courses</a></li>
+            <li><a href="#" class="text-white">BSEB Classes</a></li>
+            <li><a href="#" class="text-white">CBSE Classes</a></li>
+            <li><a href="#" class="text-white">Crash Courses</a></li>
+            <li><a href="#" class="text-white">Download Prospectus</a></li>
+          </ul>
+        </div>
+
+        <!-- Contact -->
+        <div class="col-md-3 mb-4">
+          <h5>Get in Touch</h5>
+          <p>Have questions? Contact us directly.</p>
+          <a href="contact.html" class="btn btn-primary">Contact Us</a>
+
+          <!-- Social Media -->
+          <div class="social-icons mt-3">
+            <a href="#"><i class="fab fa-facebook-f"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+            <a href="#"><i class="fab fa-youtube"></i></a>
+          </div>
+        </div>
+      </div>
+
+      <hr class="mt-4 mb-4">
+
+      <!-- Legal Links -->
+      <div class="row">
+        <div class="col-md-6 text-center text-md-start mb-2">
+          <p>© <span id="year"></span> AACEM Coaching Institute. All Rights Reserved.</p>
+        </div>
+        <div class="col-md-6 text-center text-md-end">
+          <a href="#" class="text-white me-3">Privacy Policy</a>
+          <a href="#" class="text-white">Terms & Conditions</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const parentLoginForm = document.getElementById("parentLoginForm");
+    const loginButton = parentLoginForm.querySelector("button[type='submit']");
+    const buttonText = loginButton.querySelector(".button-text");
+
+    parentLoginForm.addEventListener("submit", async function(e) {
+      e.preventDefault();
+
+      const username = document.getElementById("parentUsername").value;
+      const password = document.getElementById("parentPassword").value;
+
+      // Button state
+      loginButton.disabled = true;
+      buttonText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Logging...`;
+
+      try {
+        const response = await fetch("http://127.0.0.1:5000/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          alert("✅ Login successful");
+          window.location.href = "dashboard-parent.html";
+        } else {
+          alert("❌ " + (result.message || "Invalid Username or Password"));
+          loginButton.disabled = false;
+          buttonText.textContent = "Login";
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        alert("⚠️ Server error. Please try again.");
+        loginButton.disabled = false;
+        buttonText.textContent = "Login";
+      }
+    });
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

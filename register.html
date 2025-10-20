@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - AACEM Coaching Institute</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/register.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-graduation-cap me-2"></i>AACEM Institute
+            </a>
+        </div>
+    </nav>
+
+    <!-- Register Section -->
+    <section class="module-section">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title text-center mb-4">Create New Account</h3>
+                            <form id="registerForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="fullName" class="form-label">Full Name</label>
+                                        <input type="text" class="form-control" id="fullName" name="fullName" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="email" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="email" name="email" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="phone" class="form-label">Phone Number</label>
+                                        <input type="tel" class="form-control" id="phone" name="phone" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="role" class="form-label">I am a</label>
+                                        <select class="form-select" id="role" name="role" required>
+                                            <option value="">Select Role</option>
+                                            <option value="student">Student</option>
+                                            <option value="parent">Parent</option>
+                                            <option value="teacher">Teacher</option>
+                                            <option value="teacher">Admin</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="username" class="form-label">Username</label>
+                                        <input type="text" class="form-control" id="username" name="username" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="password" class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="password" name="password" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="confirmPassword" class="form-label">Confirm Password</label>
+                                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="courseInterest" class="form-label">Course Interest</label>
+                                        <select class="form-select" id="courseInterest" name="courseInterest">
+                                            <option value="">Select a course (optional)</option>
+                                            <option value="dca">DCA</option>
+                                            <option value="adca">ADCA</option>
+                                            <option value="tally">Tally</option>
+                                            <option value="ms-office">MS Office</option>
+                                            <option value="class9">Class 9 (BSEB)</option>
+                                            <option value="class10">Class 10 (CBSE)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
+                                    <label class="form-check-label" for="terms">I agree to the terms and conditions</label>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Register Now</button>
+                            </form>
+                            <div class="text-center mt-3">
+                                <p>Already have an account? <a href="choose-login.html">Login here</a></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <h4>AACEM Institute</h4>
+                    <p>Providing quality education in computer courses and academic classes since 2010.</p>
+                </div>
+                <div class="col-md-2 mb-4">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="index.html" class="text-white">Home</a></li>
+                        <li><a href="courses.html" class="text-white">Courses</a></li>
+                        <li><a href="index.html#features" class="text-white">Features</a></li>
+                        <li><a href="index.html#contact" class="text-white">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h5>Courses</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Computer Courses</a></li>
+                        <li><a href="#" class="text-white">BSEB Classes</a></li>
+                        <li><a href="#" class="text-white">CBSE Classes</a></li>
+                        <li><a href="#" class="text-white">Crash Courses</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h5>Subscribe</h5>
+                    <p>Subscribe to our newsletter for updates.</p>
+                    <div class="input-group">
+                        <input type="email" class="form-control" placeholder="Your Email">
+                        <button class="btn btn-primary">Subscribe</button>
+                    </div>
+                </div>
+            </div>
+            <hr class="mt-4 mb-4">
+            <div class="text-center">
+                <p>© 2023 AACEM Coaching Institute. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/register.js"></script>
+</body>
+</html>

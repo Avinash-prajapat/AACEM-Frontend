@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Dashboard - AACEM Coaching Institute</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="../css/dashboard-parent.css">
+</head>
+<body>
+    <!-- Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-graduation-cap me-2"></i>AACEM Institute
+            </a>
+            <div>
+                <span class="text-white me-3">Welcome, Avinash</span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 dashboard-sidebar">
+                <div class="text-center my-4">
+                    <h4 class="text-white">Parent Dashboard</h4>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="dashboard-parent.html">
+                            <i class="fas fa-home me-2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-user-graduate me-2"></i> My Child
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-clipboard-list me-2"></i> Attendance
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-file-alt me-2"></i> Exam Results
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-money-bill-wave me-2"></i> Fee Status
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-comment-dots me-2"></i> Messages
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="logout()">
+                            <i class="fas fa-sign-out-alt me-2"></i> Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 dashboard-content">
+                <!-- Stats Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stats-card">
+                            <div class="icon"><i class="fas fa-clipboard-check"></i></div>
+                            <h3 class="stats-number">92%</h3>
+                            <p>Attendance</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-card">
+                            <div class="icon"><i class="fas fa-book"></i></div>
+                            <h3 class="stats-number">A+</h3>
+                            <p>Overall Grade</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-card">
+                            <div class="icon"><i class="fas fa-money-bill"></i></div>
+                            <h3 class="stats-number">₹15,000</h3>
+                            <p>Fee Pending</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Subject Performance</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="performanceChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Fee Payment History</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="feeChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Updates -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Recent Exam Results</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th>Marks</th>
+                                            <th>Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Math</td><td>88</td><td>A</td></tr>
+                                        <tr><td>Science</td><td>92</td><td>A+</td></tr>
+                                        <tr><td>English</td><td>85</td><td>B+</td></tr>
+                                        <tr><td>Computer</td><td>95</td><td>A+</td></tr>
+                                        <tr><td>Social Studies</td><td>80</td><td>B</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Fee Collection</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>10 Aug 2023</td><td>₹10,000</td><td><span class="badge bg-success">Paid</span></td></tr>
+                                        <tr><td>10 Sep 2023</td><td>₹5,000</td><td><span class="badge bg-danger">Pending</span></td></tr>
+                                        <tr><td>10 Oct 2023</td><td>₹5,000</td><td><span class="badge bg-warning">Due Soon</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- end main content -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Example Charts
+        const ctx1 = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: ['Math', 'Science', 'English', 'Computer', 'SST'],
+                datasets: [{
+                    label: 'Marks',
+                    data: [88, 92, 85, 95, 80],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)'
+                }]
+            }
+        });
+
+        const ctx2 = document.getElementById('feeChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: ['Aug', 'Sep', 'Oct'],
+                datasets: [{
+                    label: 'Fee Paid',
+                    data: [10000, 0, 0],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    fill: false
+                }]
+            }
+        });
+
+        // Logout function
+        function logout() {
+            if(confirm("Are you sure you want to log out?")){
+                alert("You have been logged out!");
+                window.location.href = "index.html";
+            }
+        }
+    </script>
+</body>
+</html>
