@@ -100,7 +100,7 @@ async function ensureCoursesLoaded() {
     if (coursesData.length === 0) {
         console.log('No courses in cache, loading courses...');
         try {
-            const response = await fetch('http://localhost:5000/api/courses');
+            const response = await fetch('${api}/api/courses');
             const data = await response.json();
             if (data.success) {
                 coursesData = data.courses || [];
@@ -171,7 +171,7 @@ async function loadDashboardData() {
         showLoading('dashboardStats');
         console.log('Loading dashboard data...');
         
-        const response = await fetch('http://localhost:5000/api/dashboard-data');
+        const response = await fetch('${api}/api/dashboard-data');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -291,7 +291,7 @@ function showSuccess(message) {
 // Load notifications
 async function loadNotifications() {
     try {
-        const response = await fetch('http://localhost:5000/api/notifications');
+        const response = await fetch('${api}/api/notifications');
         const data = await response.json();
         
         if (data.success) {
@@ -504,7 +504,7 @@ async function loadClassStudents(className) {
     
     try {
         // Check if attendance already exists for this date and class
-        const checkResponse = await fetch(`http://localhost:5000/api/attendance/check-existing?date=${selectedDate}&class=${className}`);
+        const checkResponse = await fetch(`${api}/api/attendance/check-existing?date=${selectedDate}&class=${className}`);
         const checkResult = await checkResponse.json();
         
         let existingAttendance = null;
@@ -514,7 +514,7 @@ async function loadClassStudents(className) {
         }
         
         // Load students for the class
-        const response = await fetch(`http://localhost:5000/api/attendance/students/${className}`);
+        const response = await fetch(`${api}/api/attendance/students/${className}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -611,7 +611,7 @@ async function loadExistingAttendance(attendanceId) {
     try {
         console.log(`Loading existing attendance for editing: ${attendanceId}`);
         
-        const response = await fetch(`http://localhost:5000/api/attendance/${attendanceId}`);
+        const response = await fetch(`${api}/api/attendance/${attendanceId}`);
         const result = await response.json();
         
         if (result.success) {
@@ -673,7 +673,7 @@ async function saveAttendance() {
     console.log('Saving attendance:', { class: className, date: date, attendance: attendanceStatus });
     
     try {
-        const response = await fetch('http://localhost:5000/api/mark-attendance', {
+        const response = await fetch('${api}/api/mark-attendance', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -705,7 +705,7 @@ async function saveAttendance() {
 // View individual class attendance
 async function viewClassAttendance(className) {
     try {
-        const response = await fetch(`http://localhost:5000/api/attendance/class/${className}`);
+        const response = await fetch(`${api}/api/attendance/class/${className}`);
         const result = await response.json();
         
         if (result.success) {
@@ -787,7 +787,7 @@ async function viewClassAttendance(className) {
 // View detailed attendance
 async function viewAttendanceDetails(attendanceId) {
     try {
-        const response = await fetch(`http://localhost:5000/api/attendance/${attendanceId}`);
+        const response = await fetch(`${api}/api/attendance/${attendanceId}`);
         const result = await response.json();
         
         if (result.success) {
@@ -1265,8 +1265,8 @@ async function saveStudent() {
         button.disabled = true;
         
         const url = currentEditId ? 
-            `http://localhost:5000/api/update-student/${currentEditId}` :
-            'http://localhost:5000/api/add-student';
+            `${api}/api/update-student/${currentEditId}` :
+            '${api}/api/add-student';
         
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -1336,8 +1336,8 @@ async function saveTeacher() {
         button.disabled = true;
         
         const url = currentEditId ? 
-            `http://localhost:5000/api/update-teacher/${currentEditId}` :
-            'http://localhost:5000/api/add-teacher';
+            `${api}/api/update-teacher/${currentEditId}` :
+            '${api}/api/add-teacher';
         
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -1407,8 +1407,8 @@ async function saveCourse() {
         button.disabled = true;
         
         const url = currentEditId ? 
-            `http://localhost:5000/api/update-course/${currentEditId}` :
-            'http://localhost:5000/api/add-course';
+            `${api}/api/update-course/${currentEditId}` :
+            '${api}/api/add-course';
         
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -1480,7 +1480,7 @@ async function recordPayment() {
     }
     
     try {
-        const response = await fetch('http://localhost:5000/api/record-payment', {
+        const response = await fetch('${api}/api/record-payment', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1541,8 +1541,8 @@ async function saveMarks() {
         button.disabled = true;
         
         const url = currentEditId ? 
-            `http://localhost:5000/api/update-marks/${currentEditId}` :
-            'http://localhost:5000/api/add-marks';
+            `${api}/api/update-marks/${currentEditId}` :
+            '${api}/api/add-marks';
         
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -1612,8 +1612,8 @@ async function sendNotification() {
         button.disabled = true;
         
         const url = currentEditId ? 
-            `http://localhost:5000/api/update-notification/${currentEditId}` :
-            'http://localhost:5000/api/send-notification';
+            `${api}/api/update-notification/${currentEditId}` :
+            '${api}/api/send-notification';
         
         const method = currentEditId ? 'PUT' : 'POST';
         
@@ -1676,7 +1676,7 @@ async function generateReport() {
         button.innerHTML = '<span class="loading-spinner"></span> Generating...';
         button.disabled = true;
         
-        const response = await fetch('http://localhost:5000/api/generate-report', {
+        const response = await fetch('${api}/api/generate-report', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1737,7 +1737,7 @@ async function saveSettings() {
     const formData = new FormData(form);
     
     try {
-        const response = await fetch('http://localhost:5000/api/update-settings', {
+        const response = await fetch('${api}/api/update-settings', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -1777,7 +1777,7 @@ async function syncWithSupabase() {
             syncStatus.style.display = 'block';
         }
         
-        const response = await fetch('http://localhost:5000/api/sync-supabase');
+        const response = await fetch('${api}/api/sync-supabase');
         const result = await response.json();
         
         if (result.success) {
@@ -1820,7 +1820,7 @@ async function syncWithSupabase() {
 // Export data function
 async function exportData(type) {
     try {
-        const response = await fetch(`http://localhost:5000/api/export-data?type=${type}`);
+        const response = await fetch(`${api}/api/export-data?type=${type}`);
         const result = await response.json();
         
         if (result.success) {
@@ -2056,7 +2056,7 @@ async function deleteStudent(studentId) {
         
         // Use force delete
         try {
-            const response = await fetch(`http://localhost:5000/api/delete-student-force/${studentId}`, {
+            const response = await fetch(`${api}/api/delete-student-force/${studentId}`, {
                 method: 'DELETE'
             });
             
@@ -2077,7 +2077,7 @@ async function deleteStudent(studentId) {
         if (!confirm(message + "This action cannot be undone.")) return;
         
         try {
-            const response = await fetch(`http://localhost:5000/api/delete-student/${studentId}`, {
+            const response = await fetch(`${api}/api/delete-student/${studentId}`, {
                 method: 'DELETE'
             });
             
@@ -2137,7 +2137,7 @@ async function deleteStudent(studentId) {
     if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-student/${studentId}`, {
+        const response = await fetch(`${api}/api/delete-student/${studentId}`, {
             method: 'DELETE'
         });
         
@@ -2159,7 +2159,7 @@ async function deleteTeacher(teacherId) {
     if (!confirm("Are you sure you want to delete this teacher? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-teacher/${teacherId}`, {
+        const response = await fetch(`${api}/api/delete-teacher/${teacherId}`, {
             method: 'DELETE'
         });
         
@@ -2181,7 +2181,7 @@ async function deleteCourse(courseCode) {
     if (!confirm("Are you sure you want to delete this course? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-course/${courseCode}`, {
+        const response = await fetch(`${api}/api/delete-course/${courseCode}`, {
             method: 'DELETE'
         });
         
@@ -2203,7 +2203,7 @@ async function deleteFeeRecord(receiptNo) {
     if (!confirm("Are you sure you want to delete this fee record? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-fee/${receiptNo}`, {
+        const response = await fetch(`${api}/api/delete-fee/${receiptNo}`, {
             method: 'DELETE'
         });
         
@@ -2225,7 +2225,7 @@ async function deleteAttendance(attendanceId) {
     if (!confirm("Are you sure you want to delete this attendance record? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-attendance/${attendanceId}`, {
+        const response = await fetch(`${api}/api/delete-attendance/${attendanceId}`, {
             method: 'DELETE'
         });
         
@@ -2247,7 +2247,7 @@ async function deleteMarks(marksId) {
     if (!confirm("Are you sure you want to delete this marks record? This action cannot be undone.")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-marks/${marksId}`, {
+        const response = await fetch(`${api}/api/delete-marks/${marksId}`, {
             method: 'DELETE'
         });
         
@@ -2269,7 +2269,7 @@ async function deleteNotification(notificationId) {
     if (!confirm("Are you sure you want to delete this notification?")) return;
     
     try {
-        const response = await fetch(`http://localhost:5000/api/delete-notification/${notificationId}`, {
+        const response = await fetch(`${api}/api/delete-notification/${notificationId}`, {
             method: 'DELETE'
         });
         
@@ -3155,7 +3155,7 @@ function viewReceipt(receiptNo) {
 // View individual class attendance
 async function viewClassAttendance(className) {
     try {
-        const response = await fetch(`http://localhost:5000/api/attendance/class/${className}`);
+        const response = await fetch(`${api}/api/attendance/class/${className}`);
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -3275,3 +3275,4 @@ function showInfo(message) {
 
 
 console.log('Dashboard JavaScript loaded successfully');
+
