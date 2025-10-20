@@ -1,3278 +1,1937 @@
-const api = "https://aacem-backend.onrender.com"
+import os
+import uuid
+from datetime import datetime, date
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+from dotenv import load_dotenv
+from supabase import create_client, Client
+import csv
+from io import StringIO
 
+# Load environment variables
+load_dotenv()
 
-// Global variables
-let studentsData = [];
-let teachersData = [];
-let coursesData = [];
-let feesData = [];
-let attendanceData = [];
-let marksData = [];
-let notificationsData = [];
-let currentEditId = null;
+# ==================== Flask Setup ====================
+app = Flask(__name__)
+CORS(app)
 
-// Initialize the dashboard
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Dashboard initializing...');
-    loadDashboardData();
-    loadNotifications();
-    setupModalListeners();
-    setupSearchFunctionality();
-});
+# Flask configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-// Setup modal event listeners
-function setupModalListeners() {
-    console.log('Setting up modal listeners...');
-    const modals = ['studentModal', 'teacherModal', 'feeModal', 'marksModal', 'attendanceModal', 'notificationModal', 'reportModal', 'courseModal', 'settingsModal'];
-    
-    modals.forEach(modalId => {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.addEventListener('hidden.bs.modal', function() {
-                const form = this.querySelector('form');
-                if (form) {
-                    form.reset();
-                    resetModalToAddMode(modalId);
-                }
-            });
-        }
-    });
+# Enhanced CORS configuration
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5000"],
+        "methods": ["GET", "POST", "PUT", "DELETE"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    },
+    r"/admin/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5000"],
+        "methods": ["GET", "POST"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
-    // Populate dropdowns when modals open
-    document.getElementById('feeModal').addEventListener('show.bs.modal', function() {
-        console.log('Fee modal opened');
-        populateStudentDropdown('feeForm');
-    });
+# Initialize Supabase client
+url: str = os.getenv("SUPABASE_URL")
+key: str = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
-    document.getElementById('marksModal').addEventListener('show.bs.modal', function() {
-        console.log('Marks modal opened');
-        populateStudentDropdown('marksForm');
-    });
+# ==================== Helper Functions ====================
+def generate_id(prefix, table_name):
+    try:
+        # Get the current maximum ID from the specific table
+        response = supabase.table(table_name).select('id').order('id', desc=True).limit(1).execute()
+        if response.data:
+            # Find the highest numeric ID with the given prefix
+            ids_with_prefix = [row['id'] for row in response.data if isinstance(row['id'], str) and row['id'].startswith(prefix)]
+            if ids_with_prefix:
+                last_id = max(ids_with_prefix)
+                if last_id.startswith(prefix):
+                    try:
+                        last_num = int(last_id.replace(prefix, ''))
+                        return f"{prefix}{last_num + 1:03d}"
+                    except ValueError:
+                        # If conversion fails, start from 1
+                        return f"{prefix}001"
+        return f"{prefix}001"
+    except Exception as e:
+        # Fallback: use timestamp-based ID
+        timestamp = int(datetime.now().timestamp())
+        return f"{prefix}{timestamp % 10000:04d}"
 
-    document.getElementById('studentModal').addEventListener('show.bs.modal', function() {
-        console.log('Student modal opened');
-        populateCourseDropdown('studentForm', 'course');
-    });
+def get_table_count(table_name):
+    try:
+        response = supabase.table(table_name).select('id', count='exact').execute()
+        return response.count or 0
+    except Exception as e:
+        print(f"Error getting count for {table_name}: {str(e)}")
+        return 0
 
-    // FIXED: Attendance modal population
-    document.getElementById('attendanceModal').addEventListener('show.bs.modal', async function() {
-        console.log('Attendance modal opened - ensuring courses are loaded');
+def validate_phone_number(phone):
+    """Validate phone number format"""
+    if not phone:
+        return False
+    # Remove any non-digit characters
+    clean_phone = ''.join(filter(str.isdigit, str(phone)))
+    return len(clean_phone) >= 10
+
+def validate_email(email):
+    """Basic email validation"""
+    if not email:
+        return True  # Email is optional
+    return '@' in email and '.' in email
+
+# ==================== Error Handlers ====================
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'success': False, 'message': 'Resource not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@app.errorhandler(413)
+def too_large(error):
+    return jsonify({'success': False, 'message': 'File too large'}), 413
+
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({'success': False, 'message': 'Bad request'}), 400
+
+# ==================== Authentication APIs ====================
+@app.route('/admin/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Please enter both username and password'}), 400
+
+        user_response = supabase.table('users').select('*').eq('username', username).eq('password', password).execute()
         
-        // Ensure courses are loaded before populating dropdown
-        const coursesLoaded = await ensureCoursesLoaded();
+        if user_response.data:
+            return jsonify({'success': True, 'message': 'Login successful!'})
+        else:
+            return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
+
+    except Exception as e:
+        print(f"Error in login: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route("/admin/register", methods=["POST"])
+def register_admin():
+    try:
+        data = request.get_json()
+        full_name = data.get("full_name")
+        email = data.get("email")
+        phone = data.get("phone")
+        username = data.get("username")
+        password = data.get("password")
+
+        if not all([full_name, email, phone, username, password]):
+            return jsonify({"error": "⚠️ All fields are required!"}), 400
+
+        # Validate email
+        if not validate_email(email):
+            return jsonify({"error": "⚠️ Invalid email format!"}), 400
+
+        # Validate phone
+        if not validate_phone_number(phone):
+            return jsonify({"error": "⚠️ Invalid phone number format!"}), 400
+
+        # Check if username already exists
+        existing_user = supabase.table('admin_registration').select('username').eq('username', username).execute()
+        if existing_user.data:
+            return jsonify({"error": "⚠️ Username already exists!"}), 400
+
+        response = supabase.table("admin_registration").insert({
+            "full_name": full_name,
+            "email": email,
+            "phone": phone,
+            "username": username,
+            "password": password,
+            "created_at": datetime.now().isoformat()
+        }).execute()
+
+        if response.data:
+            return jsonify({
+                "message": "Admin registered successfully!",
+                "admin": response.data[0]
+            }), 201
+
+        return jsonify({"error": "Registration failed. Try again."}), 400
+
+    except Exception as e:
+        return jsonify({"error": f"⚠️ Server Error: {str(e)}"}), 500
+
+# ==================== Student Management ====================
+@app.route('/api/students', methods=['GET'])
+def get_students():
+    try:
+        response = supabase.table('students').select('*').order('created_at', desc=True).execute()
+        return jsonify({'success': True, 'students': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/add-student', methods=['POST'])
+def add_student():
+    try:
+        data = request.get_json()
         
-        if (coursesLoaded) {
-            populateCourseDropdown('attendanceForm', 'class');
-        } else {
-            const select = document.querySelector('#attendanceForm select[name="class"]');
-            if (select) {
-                select.innerHTML = '<option value="">No courses available. Please add courses first.</option>';
-            }
-        }
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
         
-        // Set current date
-        const dateInput = this.querySelector('input[type="date"]');
-        if (dateInput) {
-            dateInput.value = new Date().toISOString().split('T')[0];
-        }
+        # ... your existing validation code ...
         
-        // Clear previous students list
-        const container = document.getElementById('attendanceStudentsList');
-        if (container) {
-            container.innerHTML = '<p class="text-muted text-center p-3">Select a class and date to load students</p>';
-        }
-    });
-
-    // Set current date for relevant modals
-    document.getElementById('feeModal').addEventListener('show.bs.modal', function() {
-        const dateInput = this.querySelector('input[type="date"]');
-        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-    });
-
-    document.getElementById('marksModal').addEventListener('show.bs.modal', function() {
-        const dateInput = this.querySelector('input[type="date"]');
-        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-    });
-}
-
-// Enhanced function to handle course loading
-async function ensureCoursesLoaded() {
-    if (coursesData.length === 0) {
-        console.log('No courses in cache, loading courses...');
-        try {
-            const response = await fetch('${api}/api/courses');
-            const data = await response.json();
-            if (data.success) {
-                coursesData = data.courses || [];
-                console.log('Courses loaded:', coursesData.length);
-                return true;
-            } else {
-                console.error('Failed to load courses:', data.message);
-                return false;
-            }
-        } catch (error) {
-            console.error('Error loading courses:', error);
-            return false;
-        }
-    }
-    return coursesData.length > 0;
-}
-
-// Setup search functionality
-function setupSearchFunctionality() {
-    const studentSearch = document.getElementById('studentSearch');
-    const teacherSearch = document.getElementById('teacherSearch');
-    
-    if (studentSearch) {
-        studentSearch.addEventListener('input', function(e) {
-            filterTable('studentsTableBody', e.target.value.toLowerCase());
-        });
-    }
-    
-    if (teacherSearch) {
-        teacherSearch.addEventListener('input', function(e) {
-            filterTable('teachersTableBody', e.target.value.toLowerCase());
-        });
-    }
-}
-
-// Filter table rows
-function filterTable(tableBodyId, searchTerm) {
-    const tbody = document.getElementById(tableBodyId);
-    if (!tbody) return;
-    
-    const rows = tbody.getElementsByTagName('tr');
-    
-    for (let row of rows) {
-        const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(searchTerm) ? '' : 'none';
-    }
-}
-
-// Toggle notifications panel
-function toggleNotifications() {
-    const panel = document.getElementById('notificationPanel');
-    if (panel) {
-        panel.classList.toggle('open');
-    }
-}
-
-// Show dashboard
-function showDashboard() {
-    const studentsTab = document.getElementById('students-tab');
-    if (studentsTab) {
-        studentsTab.click();
-    }
-}
-
-// Load all dashboard data
-async function loadDashboardData() {
-    try {
-        showLoading('dashboardStats');
-        console.log('Loading dashboard data...');
+        student_id = generate_id("ST", 'students')
         
-        const response = await fetch('${api}/api/dashboard-data');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update data arrays
-            studentsData = data.students || [];
-            teachersData = data.teachers || [];
-            coursesData = data.courses || [];
-            feesData = data.fees || [];
-            attendanceData = data.attendance || [];
-            marksData = data.marks || [];
-            notificationsData = data.notifications || [];
-            
-            console.log('Data loaded successfully:');
-            console.log(`- Students: ${studentsData.length}`);
-            console.log(`- Teachers: ${teachersData.length}`);
-            console.log(`- Courses: ${coursesData.length}`);
-            console.log(`- Active Courses: ${coursesData.filter(c => c.is_active).length}`);
-            
-            if (coursesData.length > 0) {
-                console.log('Sample course:', coursesData[0]);
-            }
-            
-            // Update UI with data
-            updateStudentsTable();
-            updateTeachersTable();
-            updateCoursesTable();
-            updateFeesTable();
-            updateAttendanceTable();
-            updateMarksTable();
-            updateNotifications();
-            
-            // Update stats
-            updateDashboardStats(data.stats);
-            
-            showSuccess('Dashboard data loaded successfully');
-            
-        } else {
-            console.error('Failed to load dashboard data:', data.message);
-            showError('Failed to load dashboard data: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Error loading dashboard data:', error);
-        showError('Failed to connect to server: ' + error.message);
-    } finally {
-        hideLoading('dashboardStats');
-    }
-}
-
-// Update dashboard statistics
-function updateDashboardStats(stats) {
-    const totalStudents = document.getElementById('totalStudents');
-    const totalTeachers = document.getElementById('totalTeachers');
-    const totalCourses = document.getElementById('totalCourses');
-    const totalRevenue = document.getElementById('totalRevenue');
-    
-    if (totalStudents) totalStudents.textContent = stats.total_students || 0;
-    if (totalTeachers) totalTeachers.textContent = stats.total_teachers || 0;
-    if (totalCourses) totalCourses.textContent = stats.total_courses || 0;
-    
-    const revenue = stats.total_revenue || 0;
-    if (totalRevenue) totalRevenue.textContent = '₹' + revenue.toLocaleString();
-    
-    updateNotificationBadge();
-}
-
-// Show loading state
-function showLoading(elementId) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.classList.add('loading');
-    }
-}
-
-// Hide loading state
-function hideLoading(elementId) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.classList.remove('loading');
-    }
-}
-
-// Show error message
-function showError(message) {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) {
-        syncStatus.className = 'sync-status bg-danger text-white';
-        syncStatus.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i> ${message}`;
-        syncStatus.style.display = 'block';
-        
-        setTimeout(() => {
-            syncStatus.style.display = 'none';
-        }, 5000);
-    }
-    
-    // Also show alert for important errors
-    console.error('Error:', message);
-}
-
-// Show success message
-function showSuccess(message) {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) {
-        syncStatus.className = 'sync-status bg-success text-white';
-        syncStatus.innerHTML = `<i class="fas fa-check-circle me-2"></i> ${message}`;
-        syncStatus.style.display = 'block';
-        
-        setTimeout(() => {
-            syncStatus.style.display = 'none';
-        }, 3000);
-    }
-}
-
-// Load notifications
-async function loadNotifications() {
-    try {
-        const response = await fetch('${api}/api/notifications');
-        const data = await response.json();
-        
-        if (data.success) {
-            notificationsData = data.notifications || [];
-            updateNotifications();
-            updateNotificationBadge();
-        }
-    } catch (error) {
-        console.error('Error loading notifications:', error);
-    }
-}
-
-// Update notification badge
-function updateNotificationBadge() {
-    const badge = document.getElementById('notificationCount');
-    if (badge) {
-        const unreadCount = notificationsData.length;
-        badge.textContent = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-    }
-}
-
-// Update notifications in the panel
-function updateNotifications() {
-    const notificationList = document.getElementById('notificationList');
-    if (!notificationList) return;
-    
-    notificationList.innerHTML = '';
-    
-    if (notificationsData.length === 0) {
-        notificationList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-bell-slash"></i>
-                <p>No notifications</p>
-            </div>
-        `;
-        return;
-    }
-    
-    notificationsData.forEach(notification => {
-        const priorityClass = notification.priority === 'high' ? 'border-danger' : 
-                            notification.priority === 'medium' ? 'border-warning' : 'border-info';
-        
-        const notificationElement = document.createElement('div');
-        notificationElement.className = `card mb-2 ${priorityClass} notification-item`;
-        notificationElement.innerHTML = `
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="card-title mb-0">${notification.title || 'No Title'}</h6>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#" onclick="editNotification(${notification.id})"><i class="fas fa-edit me-2"></i>Edit</a></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteNotification(${notification.id})"><i class="fas fa-trash me-2"></i>Delete</a></li>
-                        </ul>
-                    </div>
-                </div>
-                <p class="card-text mb-2">${notification.message || 'No message'}</p>
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">${formatDate(notification.created_at)}</small>
-                    <div>
-                        <span class="badge bg-${notification.audience === 'students' ? 'info' : notification.audience === 'teachers' ? 'warning' : 'primary'} me-1">${notification.audience || 'all'}</span>
-                        <span class="badge bg-${notification.priority === 'high' ? 'danger' : notification.priority === 'medium' ? 'warning' : 'info'}">${notification.priority || 'medium'}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-        notificationList.appendChild(notificationElement);
-    });
-}
-
-// Format date
-function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-    } catch (e) {
-        return 'Invalid Date';
-    }
-}
-
-// Populate student dropdown in forms
-function populateStudentDropdown(formId) {
-    const select = document.querySelector(`#${formId} select[name="studentId"]`);
-    if (!select) {
-        console.error(`Student dropdown not found for form: ${formId}`);
-        return;
-    }
-    
-    console.log(`Populating student dropdown for ${formId} with ${studentsData.length} students`);
-    
-    select.innerHTML = '<option value="">Select Student</option>';
-    
-    if (studentsData.length === 0) {
-        console.warn('No students data available');
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No students available';
-        option.disabled = true;
-        select.appendChild(option);
-        return;
-    }
-    
-    studentsData.forEach(student => {
-        const option = document.createElement('option');
-        option.value = student.student_id;
-        option.textContent = `${student.name || 'Unknown'} (${student.student_id}) - ${student.course || 'No Course'}`;
-        select.appendChild(option);
-    });
-    
-    console.log(`Populated ${select.options.length - 1} students`);
-}
-
-// FIXED: Populate course dropdown in forms with dynamic field name
-function populateCourseDropdown(formId, fieldName = 'course') {
-    const select = document.querySelector(`#${formId} select[name="${fieldName}"]`);
-    if (!select) {
-        console.error(`Course dropdown not found for form: ${formId}, field: ${fieldName}`);
-        return;
-    }
-    
-    console.log(`Populating course dropdown for ${formId} with ${coursesData.length} courses`);
-    console.log('Available courses:', coursesData);
-    
-    select.innerHTML = '<option value="">Select Course</option>';
-    
-    if (coursesData.length === 0) {
-        console.warn('No courses data available');
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No courses available';
-        option.disabled = true;
-        select.appendChild(option);
-        return;
-    }
-    
-    let activeCoursesCount = 0;
-    coursesData.forEach(course => {
-        // Check if course is active (default to true if not specified)
-        if (course.is_active !== false) {
-            const option = document.createElement('option');
-            option.value = course.course_code;
-            option.textContent = `${course.course_name || 'Unnamed Course'} (${course.course_code})`;
-            option.setAttribute('data-fee', course.fee_amount || 0);
-            select.appendChild(option);
-            activeCoursesCount++;
-        }
-    });
-    
-    console.log(`Populated ${activeCoursesCount} active courses out of ${coursesData.length} total courses`);
-    
-    if (activeCoursesCount === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No active courses available';
-        option.disabled = true;
-        select.appendChild(option);
-    }
-}
-
-// Update fee details when student is selected
-function updateFeeDetails(studentId) {
-    const student = studentsData.find(s => s.student_id === studentId);
-    if (student) {
-        const totalFeeInput = document.querySelector('#feeForm input[name="totalFee"]');
-        const paidAmountInput = document.querySelector('#feeForm input[name="paidAmount"]');
-        const dueAmountInput = document.querySelector('#feeForm input[name="dueAmount"]');
-        const payingInput = document.querySelector('#feeForm input[name="payingNow"]');
-        
-        if (totalFeeInput) totalFeeInput.value = student.fee_amount || 0;
-        if (paidAmountInput) paidAmountInput.value = student.paid_amount || 0;
-        if (dueAmountInput) dueAmountInput.value = student.due_amount || 0;
-        
-        // Set maximum paying amount
-        if (payingInput) {
-            payingInput.max = student.due_amount || 0;
-            payingInput.placeholder = `Max: ${student.due_amount || 0}`;
-        }
-    }
-}
-
-// FIXED: Load students for attendance marking
-async function loadClassStudents(className) {
-    const container = document.getElementById('attendanceStudentsList');
-    const dateInput = document.querySelector('#attendanceForm input[name="date"]');
-    
-    if (!container) {
-        console.error('Attendance students container not found');
-        return;
-    }
-    
-    if (!dateInput || !dateInput.value) {
-        container.innerHTML = '<p class="text-warning text-center p-3">Please select a date first</p>';
-        return;
-    }
-    
-    const selectedDate = dateInput.value;
-    
-    if (!className) {
-        container.innerHTML = '<p class="text-warning text-center p-3">Please select a class first</p>';
-        return;
-    }
-    
-    console.log(`Loading students for class: ${className} on date: ${selectedDate}`);
-    
-    container.innerHTML = '<div class="text-center p-3"><div class="loading-spinner"></div> Loading students...</div>';
-    
-    try {
-        // Check if attendance already exists for this date and class
-        const checkResponse = await fetch(`${api}/api/attendance/check-existing?date=${selectedDate}&class=${className}`);
-        const checkResult = await checkResponse.json();
-        
-        let existingAttendance = null;
-        if (checkResult.success && checkResult.exists) {
-            existingAttendance = checkResult.attendance;
-            console.log('Found existing attendance:', existingAttendance);
+        new_student = {
+            'student_id': student_id,
+            'name': data.get('fullName', '').strip(),
+            'parent_name': data.get('parentName', '').strip(),
+            'phone': data.get('phone', '').strip(),
+            'email': data.get('email', '').strip().lower(),
+            'course': data.get('course', ''),
+            'fee_amount': float(data.get('fee', 0)),
+            'paid_amount': 0,
+            'due_amount': float(data.get('fee', 0)),
+            'address': data.get('address', '').strip(),
+            'join_date': datetime.now().strftime('%Y-%m-%d'),
+            'fee_status': 'Pending',
+            'password': '123456',  # Now included in the same table
+            'created_at': datetime.now().isoformat()
         }
         
-        // Load students for the class
-        const response = await fetch(`${api}/api/attendance/students/${className}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        response = supabase.table('students').insert(new_student).execute()
         
-        const result = await response.json();
-        
-        container.innerHTML = '';
-        
-        if (!result.success || !result.students || result.students.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center p-3">No students found for this class</p>';
-            return;
-        }
-        
-        console.log(`Loaded ${result.students.length} students for attendance`);
-        
-        // Show warning if attendance already exists
-        if (existingAttendance) {
-            const warningDiv = document.createElement('div');
-            warningDiv.className = 'alert alert-warning mb-3';
-            warningDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Attendance already marked for ${selectedDate}</strong>
-                        <p class="mb-0 mt-1">Present: ${existingAttendance.present_count} | Absent: ${existingAttendance.absent_count} | Percentage: ${existingAttendance.percentage}%</p>
-                    </div>
-                    <button class="btn btn-sm btn-outline-warning" onclick="loadExistingAttendance('${existingAttendance.id}')">
-                        <i class="fas fa-edit me-1"></i> Edit
-                    </button>
-                </div>
-            `;
-            container.appendChild(warningDiv);
-        }
-        
-        result.students.forEach(student => {
-            const studentDiv = document.createElement('div');
-            studentDiv.className = 'form-check mb-3 p-3 border rounded bg-light';
-            
-            // Check if student was present in existing attendance
-            let isChecked = true; // Default to present
-            let badgeClass = 'bg-success';
-            let badgeText = 'Present';
-            
-            if (existingAttendance && existingAttendance.attendance_data) {
-                const existingStatus = existingAttendance.attendance_data[student.student_id];
-                isChecked = existingStatus === 'present';
-                badgeClass = isChecked ? 'bg-success' : 'bg-danger';
-                badgeText = isChecked ? 'Present' : 'Absent';
-            }
-            
-            studentDiv.innerHTML = `
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <input class="form-check-input attendance-checkbox" type="checkbox" 
-                               data-student-id="${student.student_id}" 
-                               id="attendance_${student.student_id}" 
-                               ${isChecked ? 'checked' : ''}>
-                        <label class="form-check-label ms-3" for="attendance_${student.student_id}">
-                            <div>
-                                <strong class="d-block">${student.name || 'Unknown Student'}</strong>
-                                <small class="text-muted">ID: ${student.student_id} | Course: ${student.course || 'N/A'}</small>
-                            </div>
-                        </label>
-                    </div>
-                    <span class="badge ${badgeClass} present-badge">${badgeText}</span>
-                </div>
-            `;
-            container.appendChild(studentDiv);
-        });
-
-        // Add event listeners for checkboxes
-        const checkboxes = document.querySelectorAll('.attendance-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const badge = this.closest('.d-flex').querySelector('.present-badge');
-                if (this.checked) {
-                    badge.textContent = 'Present';
-                    badge.className = 'badge bg-success present-badge';
-                } else {
-                    badge.textContent = 'Absent';
-                    badge.className = 'badge bg-danger present-badge';
-                }
-            });
-        });
-        
-    } catch (error) {
-        console.error('Error loading students:', error);
-        container.innerHTML = '<p class="text-danger text-center p-3">Failed to load students: ' + error.message + '</p>';
-    }
-}
-
-// Load existing attendance for editing
-async function loadExistingAttendance(attendanceId) {
-    try {
-        console.log(`Loading existing attendance for editing: ${attendanceId}`);
-        
-        const response = await fetch(`${api}/api/attendance/${attendanceId}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            const attendance = result.attendance;
-            const classSelect = document.querySelector('#attendanceForm select[name="class"]');
-            const dateInput = document.querySelector('#attendanceForm input[name="date"]');
-            
-            // Set the form values
-            if (classSelect) classSelect.value = attendance.class;
-            if (dateInput) dateInput.value = attendance.date;
-            
-            // Reload students with existing attendance data
-            await loadClassStudents(attendance.class);
-            
-            showSuccess('Loaded existing attendance for editing');
-        } else {
-            showError('Failed to load attendance data: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Error loading existing attendance:', error);
-        showError('Failed to load attendance data: ' + error.message);
-    }
-}
-
-// FIXED: Save attendance function
-async function saveAttendance() {
-    const form = document.getElementById('attendanceForm');
-    if (!form) {
-        alert('Attendance form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    const className = formData.get('class');
-    const date = formData.get('date');
-    
-    if (!className) {
-        alert('Please select a class');
-        return;
-    }
-    
-    if (!date) {
-        alert('Please select a date');
-        return;
-    }
-    
-    const attendanceStatus = {};
-    const checkboxes = document.querySelectorAll('.attendance-checkbox');
-    
-    if (checkboxes.length === 0) {
-        alert('No students found for this class');
-        return;
-    }
-    
-    checkboxes.forEach(checkbox => {
-        attendanceStatus[checkbox.dataset.studentId] = checkbox.checked ? 'present' : 'absent';
-    });
-    
-    console.log('Saving attendance:', { class: className, date: date, attendance: attendanceStatus });
-    
-    try {
-        const response = await fetch('${api}/api/mark-attendance', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                class: className,
-                date: date,
-                attendance: attendanceStatus
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'message': 'Student added successfully', 
+                'studentId': student_id
             })
-        });
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save student'}), 500
         
-        const result = await response.json();
+    except Exception as e:
+        print(f"Error adding student: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+
+
+
+@app.route('/api/update-student/<student_id>', methods=['PUT'])
+def update_student(student_id):
+    try:
+        data = request.get_json()
         
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('attendanceModal'));
-            if (modal) modal.hide();
-            showSuccess('Attendance marked successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['fullName', 'parentName', 'phone', 'course', 'fee']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Validate phone number
+        if not validate_phone_number(data.get('phone')):
+            return jsonify({'success': False, 'message': 'Invalid phone number format'}), 400
+        
+        # Validate email
+        email = data.get('email')
+        if email and not validate_email(email):
+            return jsonify({'success': False, 'message': 'Invalid email format'}), 400
+        
+        # Validate fee amount
+        try:
+            fee_amount = float(data.get('fee', 0))
+            if fee_amount <= 0:
+                return jsonify({'success': False, 'message': 'Fee amount must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid fee amount'}), 400
+        
+        # Check if student exists
+        existing_student = supabase.table('students').select('student_id').eq('student_id', student_id).execute()
+        if not existing_student.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        update_data = {
+            'name': data.get('fullName', '').strip(),
+            'parent_name': data.get('parentName', '').strip(),
+            'phone': data.get('phone', '').strip(),
+            'email': data.get('email', '').strip().lower(),
+            'course': data.get('course', ''),
+            'fee_amount': float(data.get('fee', 0)),
+            'address': data.get('address', '').strip(),
+            'updated_at': datetime.now().isoformat()
         }
         
-    } catch (error) {
-        console.error('Error saving attendance:', error);
-        alert('Failed to save attendance. Please try again. Error: ' + error.message);
-    }
-}
-
-// View individual class attendance
-async function viewClassAttendance(className) {
-    try {
-        const response = await fetch(`${api}/api/attendance/class/${className}`);
-        const result = await response.json();
+        response = supabase.table('students').update(update_data).eq('student_id', student_id).execute()
         
-        if (result.success) {
-            // Create a modal to show class attendance
-            const modalHtml = `
-                <div class="modal fade" id="classAttendanceModal" tabindex="-1">
-                    <div class="modal-dialog modal-xl">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Attendance for ${className}</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Present</th>
-                                                <th>Absent</th>
-                                                <th>Percentage</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${result.attendance.map(record => `
-                                                <tr>
-                                                    <td>${formatDate(record.date)}</td>
-                                                    <td><span class="badge bg-success">${record.present_count}</span></td>
-                                                    <td><span class="badge bg-danger">${record.absent_count}</span></td>
-                                                    <td>
-                                                        <div class="d-flex align-items-center">
-                                                            <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                                <div class="progress-bar" style="width: ${record.percentage}%"></div>
-                                                            </div>
-                                                            <span>${record.percentage}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <button class="btn btn-info btn-sm" onclick="viewAttendanceDetails(${record.id})">
-                                                            <i class="fas fa-eye"></i> Details
-                                                        </button>
-                                                        <button class="btn btn-danger btn-sm" onclick="deleteAttendance(${record.id})">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+        if response.data:
+            return jsonify({'success': True, 'message': 'Student updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update student'}), 500
             
-            // Remove existing modal if any
-            const existingModal = document.getElementById('classAttendanceModal');
-            if (existingModal) {
-                existingModal.remove();
-            }
-            
-            // Add modal to body
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            
-            // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('classAttendanceModal'));
-            modal.show();
-        } else {
-            showError('Failed to load class attendance: ' + result.message);
+    except Exception as e:
+        print(f"Error updating student: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/delete-student/<student_id>', methods=['DELETE'])
+def delete_student(student_id):
+    try:
+        # Check if student exists
+        existing_student = supabase.table('students').select('student_id').eq('student_id', student_id).execute()
+        if not existing_student.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        # Delete related records first
+        try:
+            # Delete fee records
+            supabase.table('fees').delete().eq('student_id', student_id).execute()
+        except Exception as e:
+            print(f"Warning: Error deleting fee records: {str(e)}")
+        
+        try:
+            # Delete marks records
+            supabase.table('marks').delete().eq('student_id', student_id).execute()
+        except Exception as e:
+            print(f"Warning: Error deleting marks records: {str(e)}")
+        
+        # Delete the student
+        response = supabase.table('students').delete().eq('student_id', student_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Student deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete student'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting student: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Teacher Management ====================
+@app.route('/api/teachers', methods=['GET'])
+def get_teachers():
+    try:
+        response = supabase.table('teachers').select('*').order('created_at', desc=True).execute()
+        return jsonify({'success': True, 'teachers': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/add-teacher', methods=['POST'])
+def add_teacher():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['fullName', 'subject', 'phone', 'salary', 'joiningDate']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Validate phone number
+        if not validate_phone_number(data.get('phone')):
+            return jsonify({'success': False, 'message': 'Invalid phone number format'}), 400
+        
+        # Validate email
+        email = data.get('email')
+        if email and not validate_email(email):
+            return jsonify({'success': False, 'message': 'Invalid email format'}), 400
+        
+        # Validate salary
+        try:
+            salary = float(data.get('salary', 0))
+            if salary <= 0:
+                return jsonify({'success': False, 'message': 'Salary must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid salary amount'}), 400
+        
+        teacher_id = generate_id("TCH", 'teachers')
+        
+        new_teacher = {
+            'teacher_id': teacher_id,
+            'name': data.get('fullName', '').strip(),
+            'subject': data.get('subject', '').strip(),
+            'phone': data.get('phone', '').strip(),
+            'email': data.get('email', '').strip().lower(),
+            'salary': float(data.get('salary', 0)),
+            'joining_date': data.get('joiningDate', datetime.now().strftime('%Y-%m-%d')),
+            'address': data.get('address', '').strip(),
+            'created_at': datetime.now().isoformat()
         }
-    } catch (error) {
-        console.error('Error viewing class attendance:', error);
-        showError('Failed to load class attendance: ' + error.message);
-    }
-}
-
-// View detailed attendance
-async function viewAttendanceDetails(attendanceId) {
-    try {
-        const response = await fetch(`${api}/api/attendance/${attendanceId}`);
-        const result = await response.json();
         
-        if (result.success) {
-            const attendance = result.attendance;
-            let details = `Attendance Details for ${attendance.date} - ${attendance.class}\n\n`;
-            details += `Present: ${attendance.present_count} | Absent: ${attendance.absent_count} | Percentage: ${attendance.percentage}%\n\n`;
-            details += 'Student-wise Attendance:\n';
-            
-            if (attendance.attendance_data) {
-                Object.entries(attendance.attendance_data).forEach(([studentId, status]) => {
-                    // Find student name
-                    const student = studentsData.find(s => s.student_id === studentId);
-                    const studentName = student ? student.name : studentId;
-                    const statusIcon = status === 'present' ? '✅' : '❌';
-                    details += `\n${statusIcon} ${studentName}: ${status}`;
-                });
-            }
-            
-            alert(details);
-        } else {
-            alert('Error loading attendance details: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Error viewing attendance details:', error);
-        alert('Failed to load attendance details. Please try again. Error: ' + error.message);
-    }
-}
-
-// Update attendance table to show class-wise actions
-function updateAttendanceTable() {
-    const tbody = document.getElementById('attendanceTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (attendanceData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-clipboard-list"></i>
-                        <p>No attendance records found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    // Group attendance by class
-    const attendanceByClass = {};
-    attendanceData.forEach(record => {
-        if (!attendanceByClass[record.class]) {
-            attendanceByClass[record.class] = [];
-        }
-        attendanceByClass[record.class].push(record);
-    });
-    
-    // Display classes with their latest attendance
-    Object.entries(attendanceByClass).forEach(([className, records]) => {
-        const latestRecord = records[0]; // Most recent record
-        const totalRecords = records.length;
+        response = supabase.table('teachers').insert(new_teacher).execute()
         
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>
-                <strong>${className || 'Unknown Class'}</strong>
-                <br><small class="text-muted">${totalRecords} record(s)</small>
-            </td>
-            <td>${latestRecord.present_count || 0}</td>
-            <td>${latestRecord.absent_count || 0}</td>
-            <td>
-                <div class="d-flex align-items-center">
-                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                        <div class="progress-bar ${(latestRecord.percentage || 0) >= 80 ? 'bg-success' : (latestRecord.percentage || 0) >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                             style="width: ${latestRecord.percentage || 0}%"></div>
-                    </div>
-                    <span>${latestRecord.percentage || 0}%</span>
-                </div>
-            </td>
-            <td>${formatDate(latestRecord.date)}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewClassAttendance('${className}')" title="View Class Attendance">
-                        <i class="fas fa-list"></i>
-                    </button>
-                    <button class="btn btn-primary btn-action" onclick="markClassAttendance('${className}')" title="Mark Attendance">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Mark attendance for specific class
-function markClassAttendance(className) {
-    const modalElement = document.getElementById('attendanceModal');
-    if (!modalElement) {
-        console.error('Attendance modal not found');
-        return;
-    }
-    
-    const modal = new bootstrap.Modal(modalElement);
-    const classSelect = document.querySelector('#attendanceForm select[name="class"]');
-    const dateInput = document.querySelector('#attendanceForm input[name="date"]');
-    
-    // Set the class and current date
-    if (classSelect) classSelect.value = className;
-    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-    
-    // Load students for the class
-    loadClassStudents(className);
-    
-    // Show modal
-    modal.show();
-}
-
-// Update students table
-function updateStudentsTable() {
-    const tbody = document.getElementById('studentsTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (studentsData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-user-graduate"></i>
-                        <p>No students found</p>
-                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#studentModal">
-                            <i class="fas fa-plus me-1"></i> Add First Student
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    studentsData.forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${student.student_id || 'N/A'}</td>
-            <td>${student.name || 'Unknown'}</td>
-            <td>${student.course || 'No Course'}</td>
-            <td>${formatDate(student.join_date)}</td>
-            <td>${student.phone || 'N/A'}</td>
-            <td>
-                <span class="status-badge ${getFeeStatusClass(student.fee_status)}">
-                    ${student.fee_status || 'Unknown'}
-                </span>
-            </td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewStudent('${student.student_id}')" title="View">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-warning btn-action" onclick="editStudent('${student.student_id}')" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteStudent('${student.student_id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Get fee status class
-function getFeeStatusClass(status) {
-    if (!status) return 'bg-secondary';
-    
-    switch (status.toLowerCase()) {
-        case 'paid': return 'bg-success';
-        case 'partial': return 'bg-warning';
-        case 'pending': return 'bg-danger';
-        default: return 'bg-secondary';
-    }
-}
-
-// Update teachers table
-function updateTeachersTable() {
-    const tbody = document.getElementById('teachersTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (teachersData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                        <p>No teachers found</p>
-                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#teacherModal">
-                            <i class="fas fa-plus me-1"></i> Add First Teacher
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    teachersData.forEach(teacher => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${teacher.teacher_id || 'N/A'}</td>
-            <td>${teacher.name || 'Unknown'}</td>
-            <td>${teacher.subject || 'No Subject'}</td>
-            <td>${formatDate(teacher.joining_date)}</td>
-            <td>${teacher.phone || 'N/A'}</td>
-            <td>₹${(teacher.salary || 0).toLocaleString()}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewTeacher('${teacher.teacher_id}')" title="View">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-warning btn-action" onclick="editTeacher('${teacher.teacher_id}')" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteTeacher('${teacher.teacher_id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update courses table
-function updateCoursesTable() {
-    const tbody = document.getElementById('coursesTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (coursesData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-book"></i>
-                        <p>No courses found</p>
-                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#courseModal">
-                            <i class="fas fa-plus me-1"></i> Add First Course
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    coursesData.forEach(course => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${course.course_code || 'N/A'}</td>
-            <td>${course.course_name || 'Unnamed Course'}</td>
-            <td>${course.duration || 0} months</td>
-            <td>₹${(course.fee_amount || 0).toLocaleString()}</td>
-            <td><span class="badge bg-info">${course.category || 'general'}</span></td>
-            <td>${course.student_count || 0}</td>
-            <td>
-                <span class="status-badge ${course.is_active ? 'bg-success' : 'bg-secondary'}">
-                    ${course.is_active ? 'Active' : 'Inactive'}
-                </span>
-            </td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewCourse('${course.course_code}')" title="View">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-warning btn-action" onclick="editCourse('${course.course_code}')" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteCourse('${course.course_code}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update fees table
-function updateFeesTable() {
-    const tbody = document.getElementById('feesTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (feesData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <p>No fee records found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    feesData.forEach(fee => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${fee.receipt_no || 'N/A'}</td>
-            <td>${fee.student_name || 'Unknown'}</td>
-            <td>${fee.course || 'No Course'}</td>
-            <td>₹${(fee.amount || 0).toLocaleString()}</td>
-            <td>${formatDate(fee.payment_date)}</td>
-            <td>${fee.payment_mode || 'Unknown'}</td>
-            <td><span class="status-badge bg-success">${fee.status || 'Unknown'}</span></td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewReceipt('${fee.receipt_no}')" title="View">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteFeeRecord('${fee.receipt_no}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update marks table
-function updateMarksTable() {
-    const tbody = document.getElementById('marksTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (marksData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-chart-line"></i>
-                        <p>No marks records found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    marksData.forEach(mark => {
-        const percentage = ((mark.marks_obtained || 0) / (mark.total_marks || 100)) * 100;
-        let grade = 'F';
-        
-        if (percentage >= 90) grade = 'A+';
-        else if (percentage >= 80) grade = 'A';
-        else if (percentage >= 70) grade = 'B';
-        else if (percentage >= 60) grade = 'C';
-        else if (percentage >= 50) grade = 'D';
-        else if (percentage >= 40) grade = 'E';
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${mark.exam_type || 'Unknown'}</td>
-            <td>${mark.student_name || 'Unknown'}</td>
-            <td>${mark.course || 'No Course'}</td>
-            <td>${mark.subject || 'No Subject'}</td>
-            <td>${mark.marks_obtained || 0}/${mark.total_marks || 100}</td>
-            <td>${percentage.toFixed(2)}%</td>
-            <td>
-                <span class="status-badge ${getGradeClass(grade)}">${grade}</span>
-            </td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-info btn-action" onclick="viewMarks('${mark.id}')" title="View">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-warning btn-action" onclick="editMarks('${mark.id}')" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteMarks('${mark.id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Get grade class
-function getGradeClass(grade) {
-    switch (grade) {
-        case 'A+': case 'A': return 'bg-success';
-        case 'B': case 'C': return 'bg-info';
-        case 'D': case 'E': return 'bg-warning';
-        case 'F': return 'bg-danger';
-        default: return 'bg-secondary';
-    }
-}
-
-// Reset modal to add mode
-function resetModalToAddMode(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (!title || !saveBtn) return;
-    
-    switch (modalId) {
-        case 'studentModal':
-            title.textContent = 'New Student Admission';
-            saveBtn.textContent = 'Save Student';
-            saveBtn.onclick = saveStudent;
-            break;
-        case 'teacherModal':
-            title.textContent = 'Add New Teacher';
-            saveBtn.textContent = 'Save Teacher';
-            saveBtn.onclick = saveTeacher;
-            break;
-        case 'courseModal':
-            title.textContent = 'Add New Course';
-            saveBtn.textContent = 'Save Course';
-            saveBtn.onclick = saveCourse;
-            break;
-        case 'marksModal':
-            title.textContent = 'Enter Student Marks';
-            saveBtn.textContent = 'Save Marks';
-            saveBtn.onclick = saveMarks;
-            break;
-        case 'notificationModal':
-            title.textContent = 'Send Notification';
-            saveBtn.textContent = 'Send Notification';
-            saveBtn.onclick = sendNotification;
-            break;
-    }
-    
-    currentEditId = null;
-}
-
-// Save student function
-async function saveStudent() {
-    const form = document.getElementById('studentForm');
-    if (!form) {
-        alert('Student form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const requiredFields = ['fullName', 'parentName', 'phone', 'course', 'fee'];
-    const missingFields = requiredFields.filter(field => !formData.get(field));
-    
-    if (missingFields.length > 0) {
-        alert('Please fill all required fields: ' + missingFields.join(', '));
-        return;
-    }
-    
-    try {
-        const button = document.getElementById('studentSaveBtn');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Saving...';
-        button.disabled = true;
-        
-        const url = currentEditId ? 
-            `${api}/api/update-student/${currentEditId}` :
-            '${api}/api/add-student';
-        
-        const method = currentEditId ? 'PUT' : 'POST';
-        
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                fullName: formData.get('fullName'),
-                parentName: formData.get('parentName'),
-                phone: formData.get('phone'),
-                email: formData.get('email'),
-                course: formData.get('course'),
-                fee: formData.get('fee'),
-                address: formData.get('address')
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'message': 'Teacher added successfully', 
+                'teacherId': teacher_id
             })
-        });
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save teacher'}), 500
         
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('studentModal'));
-            if (modal) modal.hide();
-            showSuccess(currentEditId ? 'Student updated successfully!' : 'Student added successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error saving student:', error);
-        const button = document.getElementById('studentSaveBtn');
-        if (button) {
-            button.innerHTML = 'Save Student';
-            button.disabled = false;
-        }
-        alert('Failed to save student. Please try again. Error: ' + error.message);
-    }
-}
+    except Exception as e:
+        print(f"Error adding teacher: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Save teacher function
-async function saveTeacher() {
-    const form = document.getElementById('teacherForm');
-    if (!form) {
-        alert('Teacher form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const requiredFields = ['fullName', 'subject', 'phone', 'salary', 'joiningDate'];
-    const missingFields = requiredFields.filter(field => !formData.get(field));
-    
-    if (missingFields.length > 0) {
-        alert('Please fill all required fields: ' + missingFields.join(', '));
-        return;
-    }
-    
-    try {
-        const button = document.getElementById('teacherSaveBtn');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Saving...';
-        button.disabled = true;
+@app.route('/api/update-teacher/<teacher_id>', methods=['PUT'])
+def update_teacher(teacher_id):
+    try:
+        data = request.get_json()
         
-        const url = currentEditId ? 
-            `${api}/api/update-teacher/${currentEditId}` :
-            '${api}/api/add-teacher';
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
         
-        const method = currentEditId ? 'PUT' : 'POST';
+        # Validate required fields
+        required_fields = ['fullName', 'subject', 'phone', 'salary', 'joiningDate']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
         
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                fullName: formData.get('fullName'),
-                subject: formData.get('subject'),
-                phone: formData.get('phone'),
-                email: formData.get('email'),
-                salary: formData.get('salary'),
-                joiningDate: formData.get('joiningDate'),
-                address: formData.get('address')
+        # Validate phone number
+        if not validate_phone_number(data.get('phone')):
+            return jsonify({'success': False, 'message': 'Invalid phone number format'}), 400
+        
+        # Validate email
+        email = data.get('email')
+        if email and not validate_email(email):
+            return jsonify({'success': False, 'message': 'Invalid email format'}), 400
+        
+        # Validate salary
+        try:
+            salary = float(data.get('salary', 0))
+            if salary <= 0:
+                return jsonify({'success': False, 'message': 'Salary must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid salary amount'}), 400
+        
+        # Check if teacher exists
+        existing_teacher = supabase.table('teachers').select('teacher_id').eq('teacher_id', teacher_id).execute()
+        if not existing_teacher.data:
+            return jsonify({'success': False, 'message': 'Teacher not found'}), 404
+        
+        update_data = {
+            'name': data.get('fullName', '').strip(),
+            'subject': data.get('subject', '').strip(),
+            'phone': data.get('phone', '').strip(),
+            'email': data.get('email', '').strip().lower(),
+            'salary': float(data.get('salary', 0)),
+            'joining_date': data.get('joiningDate'),
+            'address': data.get('address', '').strip(),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('teachers').update(update_data).eq('teacher_id', teacher_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Teacher updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update teacher'}), 500
+            
+    except Exception as e:
+        print(f"Error updating teacher: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/delete-teacher/<teacher_id>', methods=['DELETE'])
+def delete_teacher(teacher_id):
+    try:
+        # Check if teacher exists
+        existing_teacher = supabase.table('teachers').select('teacher_id').eq('teacher_id', teacher_id).execute()
+        if not existing_teacher.data:
+            return jsonify({'success': False, 'message': 'Teacher not found'}), 404
+        
+        response = supabase.table('teachers').delete().eq('teacher_id', teacher_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Teacher deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete teacher'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting teacher: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Course Management ====================
+@app.route('/api/courses', methods=['GET'])
+def get_courses():
+    try:
+        response = supabase.table('courses').select('*').order('created_at', desc=True).execute()
+        return jsonify({'success': True, 'courses': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/add-course', methods=['POST'])
+def add_course():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['courseName', 'courseCode', 'duration', 'feeAmount']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Validate duration
+        try:
+            duration = int(data.get('duration', 0))
+            if duration <= 0:
+                return jsonify({'success': False, 'message': 'Duration must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid duration'}), 400
+        
+        # Validate fee amount
+        try:
+            fee_amount = float(data.get('feeAmount', 0))
+            if fee_amount <= 0:
+                return jsonify({'success': False, 'message': 'Fee amount must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid fee amount'}), 400
+        
+        new_course = {
+            'course_code': data.get('courseCode', '').upper().strip(),
+            'course_name': data.get('courseName', '').strip(),
+            'duration': int(data.get('duration', 0)),
+            'fee_amount': float(data.get('feeAmount', 0)),
+            'description': data.get('description', '').strip(),
+            'category': data.get('category', 'computer'),
+            'is_active': data.get('isActive', True),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Check if course code already exists
+        existing_response = supabase.table('courses').select('course_code').eq('course_code', new_course['course_code']).execute()
+        
+        if existing_response.data:
+            return jsonify({'success': False, 'message': 'Course code already exists'}), 400
+        
+        response = supabase.table('courses').insert(new_course).execute()
+        
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'message': 'Course added successfully', 
+                'courseCode': new_course['course_code']
             })
-        });
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save course'}), 500
         
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('teacherModal'));
-            if (modal) modal.hide();
-            showSuccess(currentEditId ? 'Teacher updated successfully!' : 'Teacher added successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error saving teacher:', error);
-        const button = document.getElementById('teacherSaveBtn');
-        if (button) {
-            button.innerHTML = 'Save Teacher';
-            button.disabled = false;
-        }
-        alert('Failed to save teacher. Please try again. Error: ' + error.message);
-    }
-}
+    except Exception as e:
+        print(f"Error adding course: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Save course function
-async function saveCourse() {
-    const form = document.getElementById('courseForm');
-    if (!form) {
-        alert('Course form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const requiredFields = ['courseName', 'courseCode', 'duration', 'feeAmount'];
-    const missingFields = requiredFields.filter(field => !formData.get(field));
-    
-    if (missingFields.length > 0) {
-        alert('Please fill all required fields: ' + missingFields.join(', '));
-        return;
-    }
-    
-    try {
-        const button = document.getElementById('courseSaveBtn');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Saving...';
-        button.disabled = true;
+@app.route('/api/update-course/<course_code>', methods=['PUT'])
+def update_course(course_code):
+    try:
+        data = request.get_json()
         
-        const url = currentEditId ? 
-            `${api}/api/update-course/${currentEditId}` :
-            '${api}/api/add-course';
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
         
-        const method = currentEditId ? 'PUT' : 'POST';
+        # Validate required fields
+        required_fields = ['courseName', 'duration', 'feeAmount']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
         
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                courseName: formData.get('courseName'),
-                courseCode: formData.get('courseCode'),
-                duration: formData.get('duration'),
-                feeAmount: formData.get('feeAmount'),
-                description: formData.get('description'),
-                category: formData.get('category'),
-                isActive: formData.get('isActive') === 'on'
+        # Validate duration
+        try:
+            duration = int(data.get('duration', 0))
+            if duration <= 0:
+                return jsonify({'success': False, 'message': 'Duration must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid duration'}), 400
+        
+        # Validate fee amount
+        try:
+            fee_amount = float(data.get('feeAmount', 0))
+            if fee_amount <= 0:
+                return jsonify({'success': False, 'message': 'Fee amount must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid fee amount'}), 400
+        
+        # Check if course exists
+        existing_course = supabase.table('courses').select('course_code').eq('course_code', course_code).execute()
+        if not existing_course.data:
+            return jsonify({'success': False, 'message': 'Course not found'}), 404
+        
+        update_data = {
+            'course_name': data.get('courseName', '').strip(),
+            'duration': int(data.get('duration', 0)),
+            'fee_amount': float(data.get('feeAmount', 0)),
+            'description': data.get('description', '').strip(),
+            'category': data.get('category', 'computer'),
+            'is_active': data.get('isActive', True),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('courses').update(update_data).eq('course_code', course_code).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Course updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update course'}), 500
+            
+    except Exception as e:
+        print(f"Error updating course: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/delete-course/<course_code>', methods=['DELETE'])
+def delete_course(course_code):
+    try:
+        # Check if course exists
+        existing_course = supabase.table('courses').select('course_code').eq('course_code', course_code).execute()
+        if not existing_course.data:
+            return jsonify({'success': False, 'message': 'Course not found'}), 404
+        
+        # Check if there are students enrolled in this course
+        students_response = supabase.table('students').select('student_id').eq('course', course_code).execute()
+        
+        if students_response.data:
+            return jsonify({'success': False, 'message': 'Cannot delete course. There are students enrolled in this course.'}), 400
+        
+        response = supabase.table('courses').delete().eq('course_code', course_code).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Course deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete course'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting course: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Fee Management ====================
+@app.route('/api/fees', methods=['GET'])
+def get_fees():
+    try:
+        response = supabase.table('fees').select('*').order('payment_date', desc=True).execute()
+        return jsonify({'success': True, 'fees': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/record-payment', methods=['POST'])
+def record_payment():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['studentId', 'amount', 'paymentDate', 'paymentMode']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Validate amount
+        try:
+            paying_amount = float(data.get('amount', 0))
+            if paying_amount <= 0:
+                return jsonify({'success': False, 'message': 'Payment amount must be positive'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid payment amount'}), 400
+        
+        # Get student details
+        student_response = supabase.table('students').select('*').eq('student_id', data.get('studentId')).execute()
+        
+        if not student_response.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        student = student_response.data[0]
+        paying_amount = float(data.get('amount', 0))
+        
+        # Check if paying amount exceeds due amount
+        due_amount = float(student.get('due_amount', 0))
+        if paying_amount > due_amount:
+            return jsonify({'success': False, 'message': 'Payment amount cannot exceed due amount'}), 400
+        
+        # Calculate new amounts
+        new_paid_amount = float(student.get('paid_amount', 0)) + paying_amount
+        new_due_amount = float(student.get('fee_amount', 0)) - new_paid_amount
+        new_fee_status = 'Paid' if new_due_amount <= 0 else 'Partial' if new_paid_amount > 0 else 'Pending'
+        
+        receipt_no = generate_id("RCPT", 'fees')
+        
+        # Add payment record
+        new_payment = {
+            'receipt_no': receipt_no,
+            'student_id': data.get('studentId'),
+            'student_name': student['name'],
+            'course': student['course'],
+            'amount': paying_amount,
+            'payment_date': data.get('paymentDate', datetime.now().strftime('%Y-%m-%d')),
+            'payment_mode': data.get('paymentMode', 'cash'),
+            'status': 'Completed',
+            'created_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('fees').insert(new_payment).execute()
+        
+        # Update student fee information
+        if response.data:
+            supabase.table('students').update({
+                'paid_amount': new_paid_amount,
+                'due_amount': new_due_amount,
+                'fee_status': new_fee_status,
+                'updated_at': datetime.now().isoformat()
+            }).eq('student_id', data.get('studentId')).execute()
+            
+            return jsonify({
+                'success': True, 
+                'message': 'Payment recorded successfully', 
+                'receiptNo': receipt_no
             })
-        });
+        else:
+            return jsonify({'success': False, 'message': 'Failed to record payment'}), 500
         
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('courseModal'));
-            if (modal) modal.hide();
-            showSuccess(currentEditId ? 'Course updated successfully!' : 'Course added successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error saving course:', error);
-        const button = document.getElementById('courseSaveBtn');
-        if (button) {
-            button.innerHTML = 'Save Course';
-            button.disabled = false;
-        }
-        alert('Failed to save course. Please try again. Error: ' + error.message);
-    }
-}
+    except Exception as e:
+        print(f"Error recording payment: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Record payment function
-async function recordPayment() {
-    const form = document.getElementById('feeForm');
-    if (!form) {
-        alert('Fee form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const requiredFields = ['studentId', 'payingNow', 'paymentDate', 'paymentMode'];
-    const missingFields = requiredFields.filter(field => !formData.get(field));
-    
-    if (missingFields.length > 0) {
-        alert('Please fill all required fields: ' + missingFields.join(', '));
-        return;
-    }
-    
-    const payingAmount = parseFloat(formData.get('payingNow'));
-    const dueAmount = parseFloat(formData.get('dueAmount'));
-    
-    if (payingAmount > dueAmount) {
-        alert('Paying amount cannot be greater than due amount');
-        return;
-    }
-    
-    try {
-        const response = await fetch('${api}/api/record-payment', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                studentId: formData.get('studentId'),
-                amount: payingAmount,
-                paymentDate: formData.get('paymentDate'),
-                paymentMode: formData.get('paymentMode')
+@app.route('/api/delete-fee/<receipt_no>', methods=['DELETE'])
+def delete_fee(receipt_no):
+    try:
+        # Get fee record first to update student data
+        fee_response = supabase.table('fees').select('*').eq('receipt_no', receipt_no).execute()
+        
+        if not fee_response.data:
+            return jsonify({'success': False, 'message': 'Fee record not found'}), 404
+        
+        fee_record = fee_response.data[0]
+        
+        # Delete fee record
+        response = supabase.table('fees').delete().eq('receipt_no', receipt_no).execute()
+        
+        if response.data:
+            # Recalculate student fee status
+            student_response = supabase.table('students').select('*').eq('student_id', fee_record['student_id']).execute()
+            if student_response.data:
+                student = student_response.data[0]
+                fees_response = supabase.table('fees').select('amount').eq('student_id', fee_record['student_id']).execute()
+                
+                total_paid = sum(float(fee['amount']) for fee in fees_response.data) if fees_response.data else 0
+                due_amount = float(student['fee_amount']) - total_paid
+                fee_status = 'Paid' if due_amount <= 0 else 'Partial' if total_paid > 0 else 'Pending'
+                
+                supabase.table('students').update({
+                    'paid_amount': total_paid,
+                    'due_amount': due_amount,
+                    'fee_status': fee_status,
+                    'updated_at': datetime.now().isoformat()
+                }).eq('student_id', fee_record['student_id']).execute()
+            
+            return jsonify({'success': True, 'message': 'Fee record deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete fee record'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting fee: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Attendance Management - FIXED ====================
+@app.route('/api/attendance/check-existing', methods=['GET'])
+def check_existing_attendance():
+    try:
+        date = request.args.get('date')
+        class_name = request.args.get('class')
+        
+        if not date:
+            return jsonify({'success': False, 'message': 'Date is required'}), 400
+        
+        if not class_name:
+            return jsonify({'success': False, 'message': 'Class is required'}), 400
+        
+        response = supabase.table('attendance').select('*').eq('date', date).eq('class', class_name).execute()
+        
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'exists': True, 
+                'attendance': response.data[0],
+                'message': 'Attendance already exists for this date and class'
             })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('feeModal'));
-            if (modal) modal.hide();
-            showSuccess('Payment recorded successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error recording payment:', error);
-        alert('Failed to record payment. Please try again. Error: ' + error.message);
-    }
-}
+        else:
+            return jsonify({'success': True, 'exists': False, 'attendance': None})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Save marks function
-async function saveMarks() {
-    const form = document.getElementById('marksForm');
-    if (!form) {
-        alert('Marks form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const requiredFields = ['exam', 'studentId', 'subject', 'marks', 'examDate'];
-    const missingFields = requiredFields.filter(field => !formData.get(field));
-    
-    if (missingFields.length > 0) {
-        alert('Please fill all required fields: ' + missingFields.join(', '));
-        return;
-    }
-    
-    const marks = parseFloat(formData.get('marks'));
-    if (marks < 0 || marks > 100) {
-        alert('Marks must be between 0 and 100');
-        return;
-    }
-    
-    try {
-        const button = document.getElementById('marksSaveBtn');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Saving...';
-        button.disabled = true;
+@app.route('/api/attendance/students/<course_code>', methods=['GET'])
+def get_students_by_course(course_code):
+    try:
+        if not course_code:
+            return jsonify({'success': False, 'message': 'Course code is required'}), 400
+            
+        response = supabase.table('students').select('student_id, name, course').eq('course', course_code).execute()
+        return jsonify({'success': True, 'students': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/mark-attendance', methods=['POST'])
+def mark_attendance():
+    try:
+        data = request.get_json()
         
-        const url = currentEditId ? 
-            `${api}/api/update-marks/${currentEditId}` :
-            '${api}/api/add-marks';
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
         
-        const method = currentEditId ? 'PUT' : 'POST';
+        attendance_date = data.get('date')
+        class_name = data.get('class')
+        attendance_data = data.get('attendance', {})
         
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                exam: formData.get('exam'),
-                studentId: formData.get('studentId'),
-                subject: formData.get('subject'),
-                marks: marks,
-                totalMarks: formData.get('totalMarks'),
-                examDate: formData.get('examDate')
+        if not attendance_date:
+            return jsonify({'success': False, 'message': 'Date is required'}), 400
+        
+        if not class_name:
+            return jsonify({'success': False, 'message': 'Class is required'}), 400
+        
+        if not attendance_data:
+            return jsonify({'success': False, 'message': 'No attendance data provided'}), 400
+        
+        # Check if attendance already exists for this date and class
+        existing_response = supabase.table('attendance').select('*').eq('date', attendance_date).eq('class', class_name).execute()
+        
+        # Calculate statistics
+        present_count = sum(1 for status in attendance_data.values() if status == 'present')
+        absent_count = sum(1 for status in attendance_data.values() if status == 'absent')
+        total_count = present_count + absent_count
+        percentage = (present_count / total_count * 100) if total_count > 0 else 0
+        
+        if existing_response.data:
+            # Update existing attendance
+            attendance_id = existing_response.data[0]['id']
+            response = supabase.table('attendance').update({
+                'attendance_data': attendance_data,
+                'present_count': present_count,
+                'absent_count': absent_count,
+                'percentage': round(percentage, 2),
+                'updated_at': datetime.now().isoformat()
+            }).eq('id', attendance_id).execute()
+        else:
+            # Create new attendance record
+            new_attendance = {
+                'date': attendance_date,
+                'class': class_name,
+                'attendance_data': attendance_data,
+                'present_count': present_count,
+                'absent_count': absent_count,
+                'percentage': round(percentage, 2),
+                'created_at': datetime.now().isoformat()
+            }
+            
+            response = supabase.table('attendance').insert(new_attendance).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Attendance marked successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to mark attendance'}), 500
+        
+    except Exception as e:
+        print(f"Error marking attendance: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== NEW: Attendance Class-wise Data ====================
+@app.route('/api/attendance/class/<class_name>', methods=['GET'])
+def get_class_attendance(class_name):
+    try:
+        if not class_name:
+            return jsonify({'success': False, 'message': 'Class name is required'}), 400
+        
+        # Get attendance records for the specific class
+        response = supabase.table('attendance').select('*').eq('class', class_name).order('date', desc=True).execute()
+        
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'attendance': response.data,
+                'class': class_name
             })
-        });
-        
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            await loadDashboardData();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('marksModal'));
-            if (modal) modal.hide();
-            showSuccess(currentEditId ? 'Marks updated successfully!' : 'Marks saved successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error saving marks:', error);
-        const button = document.getElementById('marksSaveBtn');
-        if (button) {
-            button.innerHTML = 'Save Marks';
-            button.disabled = false;
-        }
-        alert('Failed to save marks. Please try again. Error: ' + error.message);
-    }
-}
-
-// Send notification function
-async function sendNotification() {
-    const form = document.getElementById('notificationForm');
-    if (!form) {
-        alert('Notification form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    const title = formData.get('title');
-    const message = formData.get('message');
-    const audience = formData.get('audience');
-    
-    if (!title || !message || !audience) {
-        alert('Please fill all required fields');
-        return;
-    }
-    
-    try {
-        const button = document.querySelector('#notificationModal .btn-primary');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Sending...';
-        button.disabled = true;
-        
-        const url = currentEditId ? 
-            `${api}/api/update-notification/${currentEditId}` :
-            '${api}/api/send-notification';
-        
-        const method = currentEditId ? 'PUT' : 'POST';
-        
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: title,
-                message: message,
-                audience: audience,
-                priority: formData.get('priority') || 'medium'
+        else:
+            return jsonify({
+                'success': True, 
+                'attendance': [],
+                'class': class_name,
+                'message': 'No attendance records found for this class'
             })
-        });
-        
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            await loadNotifications();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('notificationModal'));
-            if (modal) modal.hide();
-            showSuccess(currentEditId ? 'Notification updated successfully!' : 'Notification sent successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error sending notification:', error);
-        const button = document.querySelector('#notificationModal .btn-primary');
-        if (button) {
-            button.innerHTML = 'Send Notification';
-            button.disabled = false;
-        }
-        alert('Failed to send notification. Please try again. Error: ' + error.message);
-    }
-}
+            
+    except Exception as e:
+        print(f"Error getting class attendance: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Generate report function
-async function generateReport() {
-    const form = document.getElementById('reportForm');
-    if (!form) {
-        alert('Report form not found');
-        return;
-    }
-    
-    const formData = new FormData(form);
-    
-    if (!formData.get('reportType') || !formData.get('format')) {
-        alert('Please fill all required fields');
-        return;
-    }
-    
-    try {
-        const button = document.querySelector('#reportModal .btn-primary');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<span class="loading-spinner"></span> Generating...';
-        button.disabled = true;
+# ==================== NEW: Individual Attendance Record ====================
+@app.route('/api/attendance/<attendance_id>', methods=['GET'])
+def get_attendance_by_id(attendance_id):
+    try:
+        if not attendance_id:
+            return jsonify({'success': False, 'message': 'Attendance ID is required'}), 400
         
-        const response = await fetch('${api}/api/generate-report', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                reportType: formData.get('reportType'),
-                startDate: formData.get('startDate'),
-                endDate: formData.get('endDate'),
-                format: formData.get('format')
+        response = supabase.table('attendance').select('*').eq('id', attendance_id).execute()
+        
+        if response.data:
+            return jsonify({
+                'success': True, 
+                'attendance': response.data[0]
             })
-        });
-        
-        const result = await response.json();
-        
-        button.innerHTML = originalText;
-        button.disabled = false;
-        
-        if (result.success) {
-            if (result.data) {
-                // Create and download file
-                const blob = new Blob([result.data], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = result.filename || `report_${new Date().getTime()}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-            }
+        else:
+            return jsonify({'success': False, 'message': 'Attendance record not found'}), 404
             
-            const modal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
-            if (modal) modal.hide();
-            showSuccess('Report generated successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
+    except Exception as e:
+        print(f"Error getting attendance: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== NEW: Delete Attendance ====================
+@app.route('/api/delete-attendance/<attendance_id>', methods=['DELETE'])
+def delete_attendance(attendance_id):
+    try:
+        # Check if attendance exists
+        existing_attendance = supabase.table('attendance').select('id').eq('id', attendance_id).execute()
+        if not existing_attendance.data:
+            return jsonify({'success': False, 'message': 'Attendance record not found'}), 404
+        
+        response = supabase.table('attendance').delete().eq('id', attendance_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Attendance record deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete attendance record'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting attendance: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Marks Management ====================
+@app.route('/api/marks', methods=['GET'])
+def get_marks():
+    try:
+        response = supabase.table('marks').select('*').order('exam_date', desc=True).execute()
+        return jsonify({'success': True, 'marks': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/add-marks', methods=['POST'])
+def add_marks():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['exam', 'studentId', 'subject', 'marks', 'examDate']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Get student details
+        student_response = supabase.table('students').select('*').eq('student_id', data.get('studentId')).execute()
+        
+        if not student_response.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        student = student_response.data[0]
+        
+        # Validate marks
+        try:
+            marks_obtained = float(data.get('marks', 0))
+            total_marks = float(data.get('totalMarks', 100))
+            
+            if marks_obtained < 0 or marks_obtained > total_marks:
+                return jsonify({'success': False, 'message': f'Marks must be between 0 and {total_marks}'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid marks format'}), 400
+        
+        percentage = (marks_obtained / total_marks) * 100
+        
+        # Determine grade
+        if percentage >= 90: grade = 'A+'
+        elif percentage >= 80: grade = 'A'
+        elif percentage >= 70: grade = 'B'
+        elif percentage >= 60: grade = 'C'
+        elif percentage >= 50: grade = 'D'
+        elif percentage >= 40: grade = 'E'
+        else: grade = 'F'
+        
+        new_marks = {
+            'exam_type': data.get('exam', ''),
+            'student_id': data.get('studentId'),
+            'student_name': student['name'],
+            'course': student['course'],
+            'subject': data.get('subject', '').strip(),
+            'marks_obtained': marks_obtained,
+            'total_marks': total_marks,
+            'percentage': round(percentage, 2),
+            'grade': grade,
+            'exam_date': data.get('examDate', ''),
+            'created_at': datetime.now().isoformat()
         }
         
-    } catch (error) {
-        console.error('Error generating report:', error);
-        const button = document.querySelector('#reportModal .btn-primary');
-        if (button) {
-            button.innerHTML = 'Generate Report';
-            button.disabled = false;
-        }
-        alert('Failed to generate report. Please try again. Error: ' + error.message);
-    }
-}
+        response = supabase.table('marks').insert(new_marks).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Marks added successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to add marks'}), 500
+        
+    except Exception as e:
+        print(f"Error adding marks: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-// Save settings function
-async function saveSettings() {
-    const form = document.getElementById('settingsForm');
-    if (!form) {
-        alert('Settings form not found');
-        return;
-    }
+@app.route('/api/update-marks/<marks_id>', methods=['PUT'])
+def update_marks(marks_id):
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['exam', 'studentId', 'subject', 'marks', 'examDate']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Get student details
+        student_response = supabase.table('students').select('*').eq('student_id', data.get('studentId')).execute()
+        
+        if not student_response.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        student = student_response.data[0]
+        
+        # Validate marks
+        try:
+            marks_obtained = float(data.get('marks', 0))
+            total_marks = float(data.get('totalMarks', 100))
+            
+            if marks_obtained < 0 or marks_obtained > total_marks:
+                return jsonify({'success': False, 'message': f'Marks must be between 0 and {total_marks}'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid marks format'}), 400
+        
+        percentage = (marks_obtained / total_marks) * 100
+        
+        # Determine grade
+        if percentage >= 90: grade = 'A+'
+        elif percentage >= 80: grade = 'A'
+        elif percentage >= 70: grade = 'B'
+        elif percentage >= 60: grade = 'C'
+        elif percentage >= 50: grade = 'D'
+        elif percentage >= 40: grade = 'E'
+        else: grade = 'F'
+        
+        update_data = {
+            'exam_type': data.get('exam'),
+            'student_id': data.get('studentId'),
+            'student_name': student['name'],
+            'course': student['course'],
+            'subject': data.get('subject', '').strip(),
+            'marks_obtained': marks_obtained,
+            'total_marks': total_marks,
+            'percentage': round(percentage, 2),
+            'grade': grade,
+            'exam_date': data.get('examDate'),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('marks').update(update_data).eq('id', marks_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Marks updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update marks'}), 500
+            
+    except Exception as e:
+        print(f"Error updating marks: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/delete-marks/<marks_id>', methods=['DELETE'])
+def delete_marks(marks_id):
+    try:
+        # Check if marks record exists
+        existing_marks = supabase.table('marks').select('id').eq('id', marks_id).execute()
+        if not existing_marks.data:
+            return jsonify({'success': False, 'message': 'Marks record not found'}), 404
+        
+        response = supabase.table('marks').delete().eq('id', marks_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Marks record deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete marks record'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting marks: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Notification Management ====================
+@app.route('/api/notifications', methods=['GET'])
+def get_notifications():
+    try:
+        response = supabase.table('notifications').select('*').order('created_at', desc=True).execute()
+        return jsonify({'success': True, 'notifications': response.data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/send-notification', methods=['POST'])
+def send_notification():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['title', 'message', 'audience']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        new_notification = {
+            'title': data.get('title', '').strip(),
+            'message': data.get('message', '').strip(),
+            'audience': data.get('audience', 'all'),
+            'priority': data.get('priority', 'medium'),
+            'created_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('notifications').insert(new_notification).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Notification sent successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to send notification'}), 500
+        
+    except Exception as e:
+        print(f"Error sending notification: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/delete-notification/<notification_id>', methods=['DELETE'])
+def delete_notification(notification_id):
+    try:
+        # Check if notification exists
+        existing_notification = supabase.table('notifications').select('id').eq('id', notification_id).execute()
+        if not existing_notification.data:
+            return jsonify({'success': False, 'message': 'Notification not found'}), 404
+        
+        response = supabase.table('notifications').delete().eq('id', notification_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Notification deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to delete notification'}), 500
+        
+    except Exception as e:
+        print(f"Error deleting notification: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/update-notification/<notification_id>', methods=['PUT'])
+def update_notification(notification_id):
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['title', 'message', 'audience']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'Missing required field: {field}'}), 400
+        
+        # Check if notification exists
+        existing_notification = supabase.table('notifications').select('id').eq('id', notification_id).execute()
+        if not existing_notification.data:
+            return jsonify({'success': False, 'message': 'Notification not found'}), 404
+        
+        update_data = {
+            'title': data.get('title', '').strip(),
+            'message': data.get('message', '').strip(),
+            'audience': data.get('audience', 'all'),
+            'priority': data.get('priority', 'medium'),
+            'updated_at': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('notifications').update(update_data).eq('id', notification_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Notification updated successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update notification'}), 500
+            
+    except Exception as e:
+        print(f"Error updating notification: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Report Generation ====================
+@app.route('/api/generate-report', methods=['POST'])
+def generate_report():
+    try:
+        data = request.get_json()
+        report_type = data.get('reportType', '')
+        format_type = data.get('format', 'csv')
+        start_date = data.get('startDate')
+        end_date = data.get('endDate')
+        
+        if not report_type:
+            return jsonify({'success': False, 'message': 'Report type is required'}), 400
+        
+        output = StringIO()
+        writer = csv.writer(output)
+        filename = f"{report_type}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        if report_type == 'students':
+            response = supabase.table('students').select('*').execute()
+            students = response.data or []
+            
+            writer.writerow(['Student ID', 'Name', 'Parent Name', 'Course', 'Join Date', 'Phone', 'Email', 'Fee Amount', 'Paid Amount', 'Due Amount', 'Fee Status', 'Address'])
+            for student in students:
+                writer.writerow([
+                    student.get('student_id', ''),
+                    student.get('name', ''),
+                    student.get('parent_name', ''),
+                    student.get('course', ''),
+                    student.get('join_date', ''),
+                    student.get('phone', ''),
+                    student.get('email', ''),
+                    student.get('fee_amount', 0),
+                    student.get('paid_amount', 0),
+                    student.get('due_amount', 0),
+                    student.get('fee_status', ''),
+                    student.get('address', '')
+                ])
+                
+        elif report_type == 'teachers':
+            response = supabase.table('teachers').select('*').execute()
+            teachers = response.data or []
+            
+            writer.writerow(['Teacher ID', 'Name', 'Subject', 'Joining Date', 'Phone', 'Email', 'Salary', 'Address'])
+            for teacher in teachers:
+                writer.writerow([
+                    teacher.get('teacher_id', ''),
+                    teacher.get('name', ''),
+                    teacher.get('subject', ''),
+                    teacher.get('joining_date', ''),
+                    teacher.get('phone', ''),
+                    teacher.get('email', ''),
+                    teacher.get('salary', 0),
+                    teacher.get('address', '')
+                ])
+                
+        elif report_type == 'courses':
+            response = supabase.table('courses').select('*').execute()
+            courses = response.data or []
+            
+            writer.writerow(['Course Code', 'Course Name', 'Duration', 'Fee Amount', 'Category', 'Description', 'Active'])
+            for course in courses:
+                writer.writerow([
+                    course.get('course_code', ''),
+                    course.get('course_name', ''),
+                    course.get('duration', 0),
+                    course.get('fee_amount', 0),
+                    course.get('category', ''),
+                    course.get('description', ''),
+                    'Yes' if course.get('is_active') else 'No'
+                ])
+                
+        elif report_type == 'fees':
+            query = supabase.table('fees').select('*')
+            if start_date:
+                query = query.gte('payment_date', start_date)
+            if end_date:
+                query = query.lte('payment_date', end_date)
+            response = query.execute()
+            fees = response.data or []
+            
+            writer.writerow(['Receipt No', 'Student Name', 'Course', 'Amount', 'Payment Date', 'Payment Mode', 'Status'])
+            for fee in fees:
+                writer.writerow([
+                    fee.get('receipt_no', ''),
+                    fee.get('student_name', ''),
+                    fee.get('course', ''),
+                    fee.get('amount', 0),
+                    fee.get('payment_date', ''),
+                    fee.get('payment_mode', ''),
+                    fee.get('status', '')
+                ])
+                
+        elif report_type == 'attendance':
+            query = supabase.table('attendance').select('*')
+            if start_date:
+                query = query.gte('date', start_date)
+            if end_date:
+                query = query.lte('date', end_date)
+            response = query.execute()
+            attendance_records = response.data or []
+            
+            writer.writerow(['Date', 'Class', 'Present Count', 'Absent Count', 'Percentage'])
+            for record in attendance_records:
+                writer.writerow([
+                    record.get('date', ''),
+                    record.get('class', ''),
+                    record.get('present_count', 0),
+                    record.get('absent_count', 0),
+                    record.get('percentage', 0)
+                ])
+                
+        elif report_type == 'marks':
+            response = supabase.table('marks').select('*').execute()
+            marks = response.data or []
+            
+            writer.writerow(['Exam Type', 'Student Name', 'Course', 'Subject', 'Marks Obtained', 'Total Marks', 'Percentage', 'Grade', 'Exam Date'])
+            for mark in marks:
+                writer.writerow([
+                    mark.get('exam_type', ''),
+                    mark.get('student_name', ''),
+                    mark.get('course', ''),
+                    mark.get('subject', ''),
+                    mark.get('marks_obtained', 0),
+                    mark.get('total_marks', 0),
+                    mark.get('percentage', 0),
+                    mark.get('grade', ''),
+                    mark.get('exam_date', '')
+                ])
+        else:
+            return jsonify({'success': False, 'message': 'Invalid report type'}), 400
+        
+        csv_data = output.getvalue()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Report generated successfully',
+            'data': csv_data,
+            'filename': filename
+        })
+        
+    except Exception as e:
+        print(f"Error generating report: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Export Data ====================
+@app.route('/api/export-data', methods=['GET'])
+def export_data():
+    try:
+        data_type = request.args.get('type', 'students')
+        
+        if data_type not in ['students', 'teachers', 'courses', 'fees', 'attendance', 'marks']:
+            return jsonify({'success': False, 'message': 'Invalid data type'}), 400
+        
+        output = StringIO()
+        writer = csv.writer(output)
+        filename = f"{data_type}_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        if data_type == 'students':
+            response = supabase.table('students').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Student ID', 'Name', 'Parent Name', 'Course', 'Join Date', 'Phone', 'Email', 'Fee Amount', 'Paid Amount', 'Due Amount', 'Fee Status', 'Address'])
+            for item in data:
+                writer.writerow([
+                    item.get('student_id', ''),
+                    item.get('name', ''),
+                    item.get('parent_name', ''),
+                    item.get('course', ''),
+                    item.get('join_date', ''),
+                    item.get('phone', ''),
+                    item.get('email', ''),
+                    item.get('fee_amount', 0),
+                    item.get('paid_amount', 0),
+                    item.get('due_amount', 0),
+                    item.get('fee_status', ''),
+                    item.get('address', '')
+                ])
+                
+        elif data_type == 'teachers':
+            response = supabase.table('teachers').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Teacher ID', 'Name', 'Subject', 'Joining Date', 'Phone', 'Email', 'Salary', 'Address'])
+            for item in data:
+                writer.writerow([
+                    item.get('teacher_id', ''),
+                    item.get('name', ''),
+                    item.get('subject', ''),
+                    item.get('joining_date', ''),
+                    item.get('phone', ''),
+                    item.get('email', ''),
+                    item.get('salary', 0),
+                    item.get('address', '')
+                ])
+                
+        elif data_type == 'courses':
+            response = supabase.table('courses').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Course Code', 'Course Name', 'Duration', 'Fee Amount', 'Category', 'Description', 'Active'])
+            for item in data:
+                writer.writerow([
+                    item.get('course_code', ''),
+                    item.get('course_name', ''),
+                    item.get('duration', 0),
+                    item.get('fee_amount', 0),
+                    item.get('category', ''),
+                    item.get('description', ''),
+                    'Yes' if item.get('is_active') else 'No'
+                ])
+                
+        elif data_type == 'fees':
+            response = supabase.table('fees').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Receipt No', 'Student Name', 'Course', 'Amount', 'Payment Date', 'Payment Mode', 'Status'])
+            for item in data:
+                writer.writerow([
+                    item.get('receipt_no', ''),
+                    item.get('student_name', ''),
+                    item.get('course', ''),
+                    item.get('amount', 0),
+                    item.get('payment_date', ''),
+                    item.get('payment_mode', ''),
+                    item.get('status', '')
+                ])
+                
+        elif data_type == 'attendance':
+            response = supabase.table('attendance').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Date', 'Class', 'All_Student_Name','Present Count', 'Absent Count', 'Percentage'])
+            for item in data:
+                writer.writerow([
+                    item.get('date', ''),
+                    item.get('class', ''),
+                    item.get('attendance_data', ''),
+                    item.get('present_count', 0),
+                    item.get('absent_count', 0),
+                    item.get('percentage', 0)
+                ])
+                
+        elif data_type == 'marks':
+            response = supabase.table('marks').select('*').execute()
+            data = response.data or []
+            writer.writerow(['Exam Type', 'Student_ID', 'Student Name', 'Course', 'Subject', 'Marks Obtained', 'Total Marks', 'Percentage', 'Grade', 'Exam Date'])
+            for item in data:
+                writer.writerow([
+                    item.get('exam_type', ''),
+                    item.get('student_id', ''),
+                    item.get('student_name', ''),
+                    item.get('course', ''),
+                    item.get('subject', ''),
+                    item.get('marks_obtained', 0),
+                    item.get('total_marks', 0),
+                    item.get('percentage', 0),
+                    item.get('grade', ''),
+                    item.get('exam_date', '')
+                ])
+        
+        csv_data = output.getvalue()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Data exported successfully',
+            'data': csv_data,
+            'filename': filename
+        })
+            
+    except Exception as e:
+        print(f"Error exporting data: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Dashboard Data ====================
+@app.route('/api/dashboard-data', methods=['GET'])
+def get_dashboard_data():
+    try:
+        # Fetch all data from Supabase
+        students_response = supabase.table('students').select('*').execute()
+        teachers_response = supabase.table('teachers').select('*').execute()
+        courses_response = supabase.table('courses').select('*').execute()
+        fees_response = supabase.table('fees').select('*').execute()
+        attendance_response = supabase.table('attendance').select('*').execute()
+        marks_response = supabase.table('marks').select('*').execute()
+        notifications_response = supabase.table('notifications').select('*').execute()
+        
+        # Calculate statistics
+        total_revenue = sum(float(fee['amount']) for fee in fees_response.data) if fees_response.data else 0
+        
+        # Count students per course for the courses data
+        courses_with_counts = []
+        if courses_response.data:
+            for course in courses_response.data:
+                student_count_response = supabase.table('students').select('student_id', count='exact').eq('course', course['course_code']).execute()
+                course['student_count'] = student_count_response.count or 0
+                courses_with_counts.append(course)
+        
+        return jsonify({
+            'success': True,
+            'students': students_response.data or [],
+            'teachers': teachers_response.data or [],
+            'courses': courses_with_counts,
+            'fees': fees_response.data or [],
+            'attendance': attendance_response.data or [],
+            'marks': marks_response.data or [],
+            'notifications': notifications_response.data or [],
+            'stats': {
+                'total_students': len(students_response.data) if students_response.data else 0,
+                'total_teachers': len(teachers_response.data) if teachers_response.data else 0,
+                'total_courses': len(courses_response.data) if courses_response.data else 0,
+                'total_revenue': total_revenue
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error getting dashboard data: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Health Check ====================
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'success': True,
+        'message': 'Server is running',
+        'database': 'Supabase',
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/api/sync-supabase', methods=['GET'])
+def sync_supabase():
+    try:
+        return jsonify({'success': True, 'message': 'Data synchronized with Supabase'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# ==================== Fixed Student Dashboard APIs ====================
+
+@app.route('/api/student-profile/<student_id>', methods=['GET'])
+def get_student_profile(student_id):
+    try:
+        print(f"Fetching profile for student: {student_id}")
+        response = supabase.table('students').select('*').eq('student_id', student_id).execute()
+        print(f"Profile response: {response}")
+        
+        if response.data:
+            student = response.data[0]
+            # Format the response properly
+            student_data = {
+                'id': student.get('id'),
+                'student_id': student.get('student_id'),
+                'name': student.get('name'),
+                'parent_name': student.get('parent_name'),
+                'phone': student.get('phone'),
+                'email': student.get('email'),
+                'course': student.get('course'),
+                'fee_amount': float(student.get('fee_amount', 0)),
+                'paid_amount': float(student.get('paid_amount', 0)),
+                'due_amount': float(student.get('due_amount', 0)),
+                'address': student.get('address'),
+                'join_date': student.get('join_date'),
+                'fee_status': student.get('fee_status')
+            }
+            return jsonify({'success': True, 'student': student_data})
+        else:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+            
+    except Exception as e:
+        print(f"Error in student-profile: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/student-fees/<student_id>', methods=['GET'])
+def get_student_fees(student_id):
+    try:
+        print(f"Fetching fees for student: {student_id}")
+        response = supabase.table('students').select('fee_amount, paid_amount, due_amount, fee_status').eq('student_id', student_id).execute()
+        print(f"Fees response: {response}")
+        
+        if response.data:
+            fee_data = response.data[0]
+            # Convert to proper types
+            fee_details = {
+                'fee_amount': float(fee_data.get('fee_amount', 0)),
+                'paid_amount': float(fee_data.get('paid_amount', 0)),
+                'due_amount': float(fee_data.get('due_amount', 0)),
+                'fee_status': fee_data.get('fee_status', 'Pending')
+            }
+            return jsonify({'success': True, 'fee_details': fee_details})
+        else:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+            
+    except Exception as e:
+        print(f"Error in student-fees: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/student-attendance/<student_id>', methods=['GET'])
+def get_student_attendance(student_id):
+    try:
+        print(f"Calculating attendance for student: {student_id}")
+        
+        # Get student details first
+        student_response = supabase.table('students').select('course').eq('student_id', student_id).execute()
+        if not student_response.data:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+        
+        course = student_response.data[0]['course']
+        print(f"Student course: {course}")
+        
+        # Get all attendance records - we'll filter by course manually to handle case sensitivity
+        attendance_response = supabase.table('attendance').select('*').execute()
+        print(f"Total attendance records found: {len(attendance_response.data)}")
+        
+        present_count = 0
+        absent_count = 0
+        total_count = 0
+        
+        # Calculate attendance from real data - handle case insensitive matching
+        for record in attendance_response.data:
+            record_class = record.get('class', '')
+            attendance_data = record.get('attendance_data', {})
+            
+            # Case insensitive comparison
+            if record_class.upper() == course.upper():
+                print(f"Found matching record for course {course}: {record['date']} - {attendance_data}")
+                
+                if student_id in attendance_data:
+                    total_count += 1
+                    if attendance_data[student_id] == 'present':
+                        present_count += 1
+                        print(f"Student {student_id} was present on {record['date']}")
+                    else:
+                        absent_count += 1
+                        print(f"Student {student_id} was absent on {record['date']}")
+                else:
+                    print(f"Student {student_id} not found in attendance data for {record['date']}")
+        
+        percentage = (present_count / total_count * 100) if total_count > 0 else 0
+        
+        attendance_data = {
+            'present_days': present_count,
+            'absent_days': absent_count,
+            'total_days': total_count,
+            'percentage': round(percentage, 2)
+        }
+        
+        print(f"Final attendance calculation for {student_id}: {attendance_data}")
+        return jsonify({'success': True, 'attendance': attendance_data})
+        
+    except Exception as e:
+        print(f"Error in student-attendance: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/student-results/<student_id>', methods=['GET'])
+def get_student_results(student_id):
+    try:
+        print(f"Fetching results for student: {student_id}")
+        response = supabase.table('marks').select('*').eq('student_id', student_id).execute()
+        print(f"Results response: {response}")
+        return jsonify({'success': True, 'results': response.data})
+    except Exception as e:
+        print(f"Error in student-results: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/student-notices', methods=['GET'])
+def get_student_notices():
+    try:
+        print("Fetching notices for students")
+        response = supabase.table('notifications').select('*').order('created_at', desc=True).execute()
+        print(f"Notices response: {response}")
+        return jsonify({'success': True, 'notices': response.data})
+    except Exception as e:
+        print(f"Error in student-notices: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/student-timetable/<student_id>', methods=['GET'])
+def get_student_timetable(student_id):
+    try:
+        print(f"Fetching timetable for student: {student_id}")
+        # For now, return empty array since timetable table might not exist
+        # You can create a timetable table later
+        return jsonify({'success': True, 'timetable': []})
+    except Exception as e:
+        print(f"Error in student-timetable: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
     
-    const formData = new FormData(form);
-    
-    try {
-        const response = await fetch('${api}/api/update-settings', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                instituteName: formData.get('instituteName'),
-                address: formData.get('address'),
-                contactNumber: formData.get('contactNumber'),
-                email: formData.get('email'),
-                website: formData.get('website')
+@app.route('/api/student-login', methods=['POST'])
+def student_login():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        student_id = data.get('student_id')
+        password = data.get('password')
+        
+        if not student_id or not password:
+            return jsonify({'success': False, 'message': 'Student ID and password are required'}), 400
+        
+        # Check in single students table
+        response = supabase.table('students').select('*').eq('student_id', student_id).execute()
+        
+        if not response.data:
+            return jsonify({'success': False, 'message': 'Student ID not found'}), 404
+        
+        student = response.data[0]
+        
+        # Check password
+        if student.get('password') != password:
+            return jsonify({'success': False, 'message': 'Invalid password'}), 401
+        
+        # Remove password from response for security
+        student_data = {k: v for k, v in student.items() if k != 'password'}
+        
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'student': student_data,
+            'token': f"student_{student_id}"
+        })
+            
+    except Exception as e:
+        print(f"Student login error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during login'}), 500
+
+@app.route('/api/student-reset-password', methods=['POST'])
+def student_reset_password():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        student_id = data.get('student_id')
+        new_password = data.get('new_password')
+        
+        if not student_id or not new_password:
+            return jsonify({'success': False, 'message': 'Student ID and new password are required'}), 400
+        
+        # Update password directly in students table
+        update_response = supabase.table('students').update({
+            'password': new_password,
+            'updated_at': datetime.now().isoformat()
+        }).eq('student_id', student_id).execute()
+        
+        if update_response.data:
+            return jsonify({
+                'success': True,
+                'message': 'Password reset successfully'
             })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-            if (modal) modal.hide();
-            showSuccess('Settings saved successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-        
-    } catch (error) {
-        console.error('Error saving settings:', error);
-        alert('Failed to save settings. Please try again. Error: ' + error.message);
-    }
-}
-
-// Sync with Supabase
-async function syncWithSupabase() {
-    try {
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) {
-            syncStatus.className = 'sync-status bg-info text-white';
-            syncStatus.innerHTML = '<i class="fas fa-sync-alt fa-spin me-2"></i> Syncing with Supabase...';
-            syncStatus.style.display = 'block';
-        }
-        
-        const response = await fetch('${api}/api/sync-supabase');
-        const result = await response.json();
-        
-        if (result.success) {
-            if (syncStatus) {
-                syncStatus.className = 'sync-status bg-success text-white';
-                syncStatus.innerHTML = '<i class="fas fa-check-circle me-2"></i> Data synced with Supabase';
-            }
+        else:
+            return jsonify({'success': False, 'message': 'Failed to reset password'}), 500
             
-            await loadDashboardData();
-        } else {
-            throw new Error(result.message);
-        }
+    except Exception as e:
+        print(f"Password reset error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during password reset'}), 500
+    
+# ==================== Student Verification API ====================
+@app.route('/api/student-verify', methods=['POST'])
+def student_verify():
+    try:
+        data = request.get_json()
         
-        setTimeout(() => {
-            if (syncStatus) {
-                syncStatus.style.display = 'none';
-            }
-        }, 3000);
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
         
-    } catch (error) {
-        console.error('Error syncing with Supabase:', error);
+        student_id = data.get('student_id')
+        mobile_number = data.get('mobile_number')
         
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) {
-            syncStatus.className = 'sync-status bg-danger text-white';
-            syncStatus.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i> Sync failed';
-            syncStatus.style.display = 'block';
-        }
+        if not student_id or not mobile_number:
+            return jsonify({'success': False, 'message': 'Student ID and mobile number are required'}), 400
         
-        setTimeout(() => {
-            if (syncStatus) {
-                syncStatus.style.display = 'none';
-            }
-        }, 3000);
+        # Verify student exists and mobile number matches
+        student_response = supabase.table('students').select('*').eq('student_id', student_id).eq('phone', mobile_number).execute()
         
-        alert('Failed to sync with Supabase. Please check your connection and try again. Error: ' + error.message);
-    }
-}
-
-// Export data function
-async function exportData(type) {
-    try {
-        const response = await fetch(`${api}/api/export-data?type=${type}`);
-        const result = await response.json();
+        if not student_response.data:
+            return jsonify({'success': False, 'message': 'Invalid Student ID or mobile number'}), 401
         
-        if (result.success) {
-            const blob = new Blob([result.data], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = result.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+        return jsonify({
+            'success': True,
+            'message': 'Verification successful',
+            'student_name': student_response.data[0]['name']
+        })
             
-            showSuccess(`${type} data exported successfully!`);
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
+    except Exception as e:
+        print(f"Student verification error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during verification'}), 500    
+    
+    
+def generate_id(prefix, table_name):
+    try:
+        # Get all student IDs
+        response = supabase.table(table_name).select('student_id').execute()
+        
+        if not response.data:
+            return f"{prefix}001"
+        
+        # Find the maximum number
+        max_num = 0
+        for row in response.data:
+            id_str = row['student_id']
+            if id_str.startswith(prefix):
+                try:
+                    num = int(id_str[len(prefix):])  # "ST001" -> 1
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    continue
+        
+        next_num = max_num + 1
+        return f"{prefix}{next_num:03d}"
+        
+    except Exception as e:
+        print(f"ID generation failed: {str(e)}")
+        return f"{prefix}{int(datetime.now().timestamp()) % 10000:04d}"
+    
+@app.route('/api/debug-students', methods=['GET'])
+def debug_students():
+    try:
+        response = supabase.table('students').select('student_id, name, password').order('student_id').execute()
+        
+        return jsonify({
+            'success': True,
+            'students': response.data if response.data else [],
+            'total_count': len(response.data) if response.data else 0
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    
+    
+# ==================== Teacher Login API ====================
+@app.route('/api/teacher-login', methods=['POST'])
+def teacher_login():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        teacher_id = data.get('teacher_id')
+        password = data.get('password')
+        
+        if not teacher_id or not password:
+            return jsonify({'success': False, 'message': 'Teacher ID and password are required'}), 400
+        
+        # Check password in teacher_passwords table
+        password_response = supabase.table('teacher_passwords').select('*').eq('teacher_id', teacher_id).execute()
+        
+        if not password_response.data:
+            return jsonify({'success': False, 'message': 'Teacher ID not found'}), 404
+        
+        stored_password = password_response.data[0]['password']
+        
+        # Check password
+        if stored_password != password:
+            return jsonify({'success': False, 'message': 'Invalid password'}), 401
+        
+        # Get teacher details from teachers table
+        teacher_response = supabase.table('teachers').select('*').eq('teacher_id', teacher_id).execute()
+        
+        if not teacher_response.data:
+            return jsonify({'success': False, 'message': 'Teacher details not found'}), 404
+        
+        teacher = teacher_response.data[0]
+        
+        # Prepare teacher data for response
+        teacher_data = {
+            'id': teacher.get('id'),
+            'teacher_id': teacher.get('teacher_id'),
+            'name': teacher.get('name'),
+            'subject': teacher.get('subject'),
+            'phone': teacher.get('phone'),
+            'email': teacher.get('email'),
+            'salary': teacher.get('salary'),
+            'joining_date': teacher.get('joining_date'),
+            'address': teacher.get('address'),
+            'qualification': teacher.get('qualification')
         }
-    } catch (error) {
-        console.error('Error exporting data:', error);
-        alert('Failed to export data. Please try again. Error: ' + error.message);
-    }
-}
-
-// Logout function
-function logout() {
-    if (confirm("Are you sure you want to log out?")) {
-        alert("You have been logged out!");
-        window.location.href = "login.html";
-    }
-}
-
-// Edit Student Function
-async function editStudent(studentId) {
-    const student = studentsData.find(s => s.student_id === studentId);
-    if (!student) {
-        alert('Student not found!');
-        return;
-    }
-
-    const form = document.getElementById('studentForm');
-    if (!form) {
-        alert('Student form not found');
-        return;
-    }
-
-    form.querySelector('input[name="fullName"]').value = student.name || '';
-    form.querySelector('input[name="parentName"]').value = student.parent_name || '';
-    form.querySelector('input[name="phone"]').value = student.phone || '';
-    form.querySelector('input[name="email"]').value = student.email || '';
-    form.querySelector('select[name="course"]').value = student.course || '';
-    form.querySelector('input[name="fee"]').value = student.fee_amount || '';
-    form.querySelector('textarea[name="address"]').value = student.address || '';
-
-    const modal = document.getElementById('studentModal');
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (title) title.textContent = 'Edit Student';
-    if (saveBtn) {
-        saveBtn.textContent = 'Update Student';
-        saveBtn.onclick = function() { saveStudent(); };
-    }
-
-    currentEditId = studentId;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
-
-// Edit Teacher Function
-async function editTeacher(teacherId) {
-    const teacher = teachersData.find(t => t.teacher_id === teacherId);
-    if (!teacher) {
-        alert('Teacher not found!');
-        return;
-    }
-
-    const form = document.getElementById('teacherForm');
-    if (!form) {
-        alert('Teacher form not found');
-        return;
-    }
-
-    form.querySelector('input[name="fullName"]').value = teacher.name || '';
-    form.querySelector('input[name="subject"]').value = teacher.subject || '';
-    form.querySelector('input[name="phone"]').value = teacher.phone || '';
-    form.querySelector('input[name="email"]').value = teacher.email || '';
-    form.querySelector('input[name="salary"]').value = teacher.salary || '';
-    form.querySelector('input[name="joiningDate"]').value = teacher.joining_date || '';
-    form.querySelector('textarea[name="address"]').value = teacher.address || '';
-
-    const modal = document.getElementById('teacherModal');
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (title) title.textContent = 'Edit Teacher';
-    if (saveBtn) {
-        saveBtn.textContent = 'Update Teacher';
-        saveBtn.onclick = function() { saveTeacher(); };
-    }
-
-    currentEditId = teacherId;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
-
-// Edit Course Function
-async function editCourse(courseCode) {
-    const course = coursesData.find(c => c.course_code === courseCode);
-    if (!course) {
-        alert('Course not found!');
-        return;
-    }
-
-    const form = document.getElementById('courseForm');
-    if (!form) {
-        alert('Course form not found');
-        return;
-    }
-
-    form.querySelector('input[name="courseName"]').value = course.course_name || '';
-    form.querySelector('input[name="courseCode"]').value = course.course_code || '';
-    form.querySelector('input[name="duration"]').value = course.duration || '';
-    form.querySelector('input[name="feeAmount"]').value = course.fee_amount || '';
-    form.querySelector('textarea[name="description"]').value = course.description || '';
-    form.querySelector('select[name="category"]').value = course.category || 'computer';
-    form.querySelector('input[name="isActive"]').checked = course.is_active || false;
-
-    const modal = document.getElementById('courseModal');
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (title) title.textContent = 'Edit Course';
-    if (saveBtn) {
-        saveBtn.textContent = 'Update Course';
-        saveBtn.onclick = function() { saveCourse(); };
-    }
-
-    currentEditId = courseCode;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
-
-// Edit Marks Function
-async function editMarks(marksId) {
-    const mark = marksData.find(m => m.id == marksId);
-    if (!mark) {
-        alert('Marks record not found!');
-        return;
-    }
-
-    const form = document.getElementById('marksForm');
-    if (!form) {
-        alert('Marks form not found');
-        return;
-    }
-
-    form.querySelector('select[name="exam"]').value = mark.exam_type || '';
-    form.querySelector('select[name="studentId"]').value = mark.student_id || '';
-    form.querySelector('input[name="subject"]').value = mark.subject || '';
-    form.querySelector('input[name="marks"]').value = mark.marks_obtained || '';
-    form.querySelector('input[name="totalMarks"]').value = mark.total_marks || '';
-    form.querySelector('input[name="examDate"]').value = mark.exam_date || '';
-
-    const modal = document.getElementById('marksModal');
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (title) title.textContent = 'Edit Marks';
-    if (saveBtn) {
-        saveBtn.textContent = 'Update Marks';
-        saveBtn.onclick = function() { saveMarks(); };
-    }
-
-    currentEditId = marksId;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
-
-// Edit Notification Function
-async function editNotification(notificationId) {
-    const notification = notificationsData.find(n => n.id == notificationId);
-    if (!notification) {
-        alert('Notification not found!');
-        return;
-    }
-
-    const form = document.getElementById('notificationForm');
-    if (!form) {
-        alert('Notification form not found');
-        return;
-    }
-
-    form.querySelector('input[name="title"]').value = notification.title || '';
-    form.querySelector('textarea[name="message"]').value = notification.message || '';
-    form.querySelector('select[name="audience"]').value = notification.audience || 'all';
-    form.querySelector('select[name="priority"]').value = notification.priority || 'medium';
-
-    const modal = document.getElementById('notificationModal');
-    const title = modal.querySelector('.modal-title');
-    const saveBtn = modal.querySelector('.btn-primary');
-    
-    if (title) title.textContent = 'Edit Notification';
-    if (saveBtn) {
-        saveBtn.textContent = 'Update Notification';
-        saveBtn.onclick = function() { sendNotification(); };
-    }
-
-    currentEditId = notificationId;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
-// Delete functions
-async function deleteStudent(studentId) {
-    const student = studentsData.find(s => s.student_id === studentId);
-    if (!student) {
-        alert('Student not found!');
-        return;
-    }
-
-    let message = `Are you sure you want to delete student ${student.name} (${student.student_id})?\n\n`;
-    
-    // Check if student has fee records
-    const hasFeeRecords = feesData.some(f => f.student_id === studentId);
-    const hasMarksRecords = marksData.some(m => m.student_id === studentId);
-    
-    if (hasFeeRecords || hasMarksRecords) {
-        message += "⚠️ Warning: This student has associated records:\n";
-        if (hasFeeRecords) message += "• Fee payment records\n";
-        if (hasMarksRecords) message += "• Exam marks records\n";
-        message += "\nDeleting will remove all associated records. This action cannot be undone!";
         
-        if (!confirm(message)) return;
-        
-        // Use force delete
-        try {
-            const response = await fetch(`${api}/api/delete-student-force/${studentId}`, {
-                method: 'DELETE'
-            });
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'teacher': teacher_data,
+            'token': f"teacher_{teacher_id}"
+        })
             
-            const result = await response.json();
+    except Exception as e:
+        print(f"Teacher login error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during login'}), 500
+
+# ==================== Teacher Verification API ====================
+@app.route('/api/teacher-verify', methods=['POST'])
+def teacher_verify():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        teacher_id = data.get('teacher_id')
+        mobile_number = data.get('mobile_number')
+        
+        if not teacher_id or not mobile_number:
+            return jsonify({'success': False, 'message': 'Teacher ID and mobile number are required'}), 400
+        
+        # Verify teacher exists and mobile number matches
+        teacher_response = supabase.table('teachers').select('*').eq('teacher_id', teacher_id).eq('phone', mobile_number).execute()
+        
+        if not teacher_response.data:
+            return jsonify({'success': False, 'message': 'Invalid Teacher ID or mobile number'}), 401
+        
+        return jsonify({
+            'success': True,
+            'message': 'Verification successful',
+            'teacher_name': teacher_response.data[0]['name']
+        })
             
-            if (result.success) {
-                await loadDashboardData();
-                showSuccess('Student and all related records deleted successfully!');
-            } else {
-                alert('Error: ' + (result.message || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Error force deleting student:', error);
-            alert('Failed to delete student. Please try again. Error: ' + error.message);
-        }
-    } else {
-        // Regular delete for students without records
-        if (!confirm(message + "This action cannot be undone.")) return;
+    except Exception as e:
+        print(f"Teacher verification error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during verification'}), 500
+
+# ==================== Teacher Reset Password API ====================
+@app.route('/api/teacher-reset-password', methods=['POST'])
+def teacher_reset_password():
+    try:
+        data = request.get_json()
         
-        try {
-            const response = await fetch(`${api}/api/delete-student/${studentId}`, {
-                method: 'DELETE'
-            });
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        teacher_id = data.get('teacher_id')
+        new_password = data.get('new_password')
+        
+        if not teacher_id or not new_password:
+            return jsonify({'success': False, 'message': 'Teacher ID and new password are required'}), 400
+        
+        # Update password in teacher_passwords table
+        update_response = supabase.table('teacher_passwords').update({
+            'password': new_password,
+            'updated_at': datetime.now().isoformat()
+        }).eq('teacher_id', teacher_id).execute()
+        
+        if update_response.data:
+            return jsonify({
+                'success': True,
+                'message': 'Password reset successfully'
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Failed to reset password'}), 500
             
-            const result = await response.json();
-            
-            if (result.success) {
-                await loadDashboardData();
-                showSuccess('Student deleted successfully!');
-            } else {
-                alert('Error: ' + (result.message || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Error deleting student:', error);
-            alert('Failed to delete student. Please try again. Error: ' + error.message);
-        }
-    }
-}
-// View functions
-function viewStudent(studentId) {
-    const student = studentsData.find(s => s.student_id === studentId);
-    if (student) {
-        alert(`Student Details:\n\nName: ${student.name}\nParent: ${student.parent_name}\nCourse: ${student.course}\nPhone: ${student.phone}\nEmail: ${student.email || 'N/A'}\nFee Status: ${student.fee_status}\nPaid: ₹${student.paid_amount || 0}\nDue: ₹${student.due_amount || 0}\nAddress: ${student.address || 'N/A'}`);
-    }
-}
+    except Exception as e:
+        print(f"Teacher password reset error: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error during password reset'}), 500    
 
-function viewTeacher(teacherId) {
-    const teacher = teachersData.find(t => t.teacher_id === teacherId);
-    if (teacher) {
-        alert(`Teacher Details:\n\nName: ${teacher.name}\nSubject: ${teacher.subject}\nPhone: ${teacher.phone}\nEmail: ${teacher.email || 'N/A'}\nSalary: ₹${teacher.salary}\nJoining Date: ${formatDate(teacher.joining_date)}\nAddress: ${teacher.address || 'N/A'}`);
-    }
-}
-
-function viewCourse(courseCode) {
-    const course = coursesData.find(c => c.course_code === courseCode);
-    if (course) {
-        alert(`Course Details:\n\nCode: ${course.course_code}\nName: ${course.course_name}\nDuration: ${course.duration} months\nFee: ₹${course.fee_amount}\nCategory: ${course.category}\nStatus: ${course.is_active ? 'Active' : 'Inactive'}\nStudents: ${course.student_count || 0}\nDescription: ${course.description || 'N/A'}`);
-    }
-}
-
-function viewReceipt(receiptNo) {
-    const fee = feesData.find(f => f.receipt_no === receiptNo);
-    if (fee) {
-        alert(`Receipt Details:\n\nReceipt No: ${fee.receipt_no}\nStudent: ${fee.student_name}\nCourse: ${fee.course}\nAmount: ₹${fee.amount}\nPayment Date: ${formatDate(fee.payment_date)}\nPayment Mode: ${fee.payment_mode}\nStatus: ${fee.status}`);
-    }
-}
-
-function viewMarks(marksId) {
-    const mark = marksData.find(m => m.id == marksId);
-    if (mark) {
-        const percentage = ((mark.marks_obtained || 0) / (mark.total_marks || 100)) * 100;
-        alert(`Marks Details:\n\nStudent: ${mark.student_name}\nExam: ${mark.exam_type}\nSubject: ${mark.subject}\nMarks: ${mark.marks_obtained}/${mark.total_marks}\nPercentage: ${percentage.toFixed(2)}%\nGrade: ${mark.grade}\nExam Date: ${formatDate(mark.exam_date)}`);
-    }
-}
-
-// Delete functions
-async function deleteStudent(studentId) {
-    if (!confirm("Are you sure you want to delete this student? This action cannot be undone.")) return;
+# ==================== Run Flask ====================
+if __name__ == '__main__':
+    print("=" * 50)
+    print("AACEM Institute Management System")
+    print("Database: Supabase")
+    print("=" * 50)
     
-    try {
-        const response = await fetch(`${api}/api/delete-student/${studentId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Student deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting student:', error);
-        alert('Failed to delete student. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteTeacher(teacherId) {
-    if (!confirm("Are you sure you want to delete this teacher? This action cannot be undone.")) return;
+    print("System initialized successfully!")
+    print("Starting Flask server on http://localhost:5000")
+    print("=" * 50)
     
-    try {
-        const response = await fetch(`${api}/api/delete-teacher/${teacherId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Teacher deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting teacher:', error);
-        alert('Failed to delete teacher. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteCourse(courseCode) {
-    if (!confirm("Are you sure you want to delete this course? This action cannot be undone.")) return;
-    
-    try {
-        const response = await fetch(`${api}/api/delete-course/${courseCode}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Course deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting course:', error);
-        alert('Failed to delete course. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteFeeRecord(receiptNo) {
-    if (!confirm("Are you sure you want to delete this fee record? This action cannot be undone.")) return;
-    
-    try {
-        const response = await fetch(`${api}/api/delete-fee/${receiptNo}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Fee record deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting fee record:', error);
-        alert('Failed to delete fee record. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteAttendance(attendanceId) {
-    if (!confirm("Are you sure you want to delete this attendance record? This action cannot be undone.")) return;
-    
-    try {
-        const response = await fetch(`${api}/api/delete-attendance/${attendanceId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Attendance record deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting attendance record:', error);
-        alert('Failed to delete attendance record. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteMarks(marksId) {
-    if (!confirm("Are you sure you want to delete this marks record? This action cannot be undone.")) return;
-    
-    try {
-        const response = await fetch(`${api}/api/delete-marks/${marksId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadDashboardData();
-            showSuccess('Marks record deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting marks record:', error);
-        alert('Failed to delete marks record. Please try again. Error: ' + error.message);
-    }
-}
-
-async function deleteNotification(notificationId) {
-    if (!confirm("Are you sure you want to delete this notification?")) return;
-    
-    try {
-        const response = await fetch(`${api}/api/delete-notification/${notificationId}`, {
-            method: 'DELETE'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            await loadNotifications();
-            showSuccess('Notification deleted successfully!');
-        } else {
-            alert('Error: ' + (result.message || 'Unknown error'));
-        }
-    } catch (error) {
-        console.error('Error deleting notification:', error);
-        alert('Failed to delete notification. Please try again. Error: ' + error.message);
-    }
-}
-
-// Mark all notifications as read
-function markAllNotificationsRead() {
-    const notifications = document.querySelectorAll('.notification-item');
-    notifications.forEach(notification => {
-        notification.style.opacity = '0.7';
-    });
-    const badge = document.getElementById('notificationCount');
-    if (badge) badge.textContent = '0';
-    showSuccess('All notifications marked as read!');
-}
-
-// Mobile menu functionality
-function toggleMobileMenu() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('mobile-open');
-    }
-}
-
-// Debug function to check courses
-function debugCourses() {
-    console.log('=== COURSES DEBUG INFO ===');
-    console.log('Courses data array:', coursesData);
-    console.log('Courses data length:', coursesData.length);
-    
-    const attendanceSelect = document.querySelector('#attendanceForm select[name="class"]');
-    console.log('Attendance dropdown:', attendanceSelect);
-    console.log('Attendance dropdown options:', attendanceSelect ? attendanceSelect.options.length : 'No dropdown found');
-    
-    if (attendanceSelect) {
-        for (let i = 0; i < attendanceSelect.options.length; i++) {
-            console.log(`Option ${i}: ${attendanceSelect.options[i].text} - ${attendanceSelect.options[i].value}`);
-        }
-    }
-    console.log('=== END DEBUG ===');
-}
-// Add this function to generate and print receipts in A4 size
-async function printReceipt(receiptNo) {
-    try {
-        // Get fee record details
-        const feeRecord = feesData.find(f => f.receipt_no === receiptNo);
-        if (!feeRecord) {
-            alert('Fee record not found!');
-            return;
-        }
-
-        // Get student details
-        const student = studentsData.find(s => s.student_id === feeRecord.student_id);
-        if (!student) {
-            alert('Student details not found!');
-            return;
-        }
-
-        // Create receipt HTML
-        const receiptHtml = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Fee Receipt - ${receiptNo}</title>
-                <style>
-                    @page {
-                        size: A4;
-                        margin: 15mm;
-                    }
-                    
-                    * {
-                        margin: 0;
-                        padding: 0;
-                        box-sizing: border-box;
-                    }
-                    
-                    body {
-                        font-family: 'Arial', sans-serif;
-                        font-size: 12px;
-                        line-height: 1.4;
-                        color: #333;
-                        background: white;
-                    }
-                    
-                    .receipt-container {
-                        max-width: 100%;
-                        padding: 10px;
-                    }
-                    
-                    .header {
-                        text-align: center;
-                        border-bottom: 2px solid #333;
-                        padding-bottom: 8px;
-                        margin-bottom: 12px;
-                    }
-                    
-                    .institute-name {
-                        font-size: 20px;
-                        font-weight: bold;
-                        color: #2d6b6b;
-                        margin-bottom: 3px;
-                    }
-                    
-                    .institute-address {
-                        font-size: 10px;
-                        color: #666;
-                        margin-bottom: 5px;
-                    }
-                    
-                    .receipt-title {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #333;
-                        margin-top: 8px;
-                    }
-                    
-                    .info-table {
-                        width: 100%;
-                        margin-bottom: 12px;
-                        border-collapse: collapse;
-                    }
-                    
-                    .info-table td {
-                        padding: 4px 8px;
-                        border: 1px solid #ddd;
-                        font-size: 11px;
-                    }
-                    
-                    .info-table td:first-child {
-                        font-weight: bold;
-                        background: #f5f5f5;
-                        width: 35%;
-                    }
-                    
-                    .amount-table {
-                        width: 100%;
-                        margin: 12px 0;
-                        border-collapse: collapse;
-                    }
-                    
-                    .amount-table th {
-                        background: #2d6b6b;
-                        color: white;
-                        padding: 6px;
-                        text-align: left;
-                        font-size: 11px;
-                        border: 1px solid #2d6b6b;
-                    }
-                    
-                    .amount-table td {
-                        padding: 5px 8px;
-                        border: 1px solid #ddd;
-                        font-size: 11px;
-                    }
-                    
-                    .amount-table .text-right {
-                        text-align: right;
-                    }
-                    
-                    .amount-table .total-row {
-                        background: #f8f9fa;
-                        font-weight: bold;
-                        font-size: 12px;
-                    }
-                    
-                    .amount-table .highlight {
-                        background: #fff3cd;
-                        font-weight: bold;
-                    }
-                    
-                    .signature-section {
-                        display: flex;
-                        justify-content: space-between;
-                        margin-top: 30px;
-                    }
-                    
-                    .signature {
-                        text-align: center;
-                        width: 40%;
-                    }
-                    
-                    .signature-line {
-                        border-top: 1px solid #333;
-                        margin-top: 35px;
-                        margin-bottom: 5px;
-                    }
-                    
-                    .signature-label {
-                        font-size: 10px;
-                        color: #666;
-                    }
-                    
-                    .footer {
-                        text-align: center;
-                        margin-top: 20px;
-                        padding-top: 10px;
-                        border-top: 1px solid #ddd;
-                        font-size: 9px;
-                        color: #666;
-                    }
-                    
-                    @media print {
-                        body {
-                            background: white;
-                        }
-                        .no-print {
-                            display: none !important;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="receipt-container">
-                    <div class="header">
-                        <div class="institute-name">AACEM INSTITUTE</div>
-                        <div class="institute-address">
-                            123 Education Street, Learning City, LC 12345 | Phone: +91-9876543210 | Email: info@aacem.edu.in
-                        </div>
-                        <div class="receipt-title">FEE PAYMENT RECEIPT</div>
-                    </div>
-
-                    <table class="info-table">
-                        <tr>
-                            <td>Receipt Number</td>
-                            <td><strong>${receiptNo}</strong></td>
-                            <td>Student ID</td>
-                            <td><strong>${student.student_id}</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Payment Date</td>
-                            <td>${formatDate(feeRecord.payment_date)}</td>
-                            <td>Student Name</td>
-                            <td>${student.name}</td>
-                        </tr>
-                        <tr>
-                            <td>Payment Mode</td>
-                            <td>${feeRecord.payment_mode.toUpperCase()}</td>
-                            <td>Course</td>
-                            <td>${student.course}</td>
-                        </tr>
-                    </table>
-
-                    <table class="amount-table">
-                        <thead>
-                            <tr>
-                                <th>Description</th>
-                                <th class="text-right">Amount (₹)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Total Course Fee</td>
-                                <td class="text-right">${(student.fee_amount || 0).toLocaleString()}</td>
-                            </tr>
-                            <tr>
-                                <td>Previously Paid</td>
-                                <td class="text-right">${((student.paid_amount || 0) - (feeRecord.amount || 0)).toLocaleString()}</td>
-                            </tr>
-                            <tr class="highlight">
-                                <td><strong>Current Payment (${feeRecord.status || 'Completed'})</strong></td>
-                                <td class="text-right"><strong>${(feeRecord.amount || 0).toLocaleString()}</strong></td>
-                            </tr>
-                            <tr class="total-row">
-                                <td>Total Paid Amount</td>
-                                <td class="text-right">${(student.paid_amount || 0).toLocaleString()}</td>
-                            </tr>
-                            <tr style="background: #ffe6e6;">
-                                <td><strong>Remaining Due Amount</strong></td>
-                                <td class="text-right" style="color: #dc3545;"><strong>${(student.due_amount || 0).toLocaleString()}</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div class="signature-section">
-                        <div class="signature">
-                            <div class="signature-line"></div>
-                            <div class="signature-label">Student/Parent Signature</div>
-                        </div>
-                        <div class="signature">
-                            <div class="signature-line"></div>
-                            <div class="signature-label">Authorized Signature</div>
-                        </div>
-                    </div>
-
-                    <div class="footer">
-                        <p>This is a computer generated receipt. No signature required.</p>
-                        <p>Generated on: ${new Date().toLocaleString()}</p>
-                    </div>
-
-                    <div class="no-print" style="text-align: center; margin-top: 20px;">
-                        <button onclick="window.print()" style="
-                            background: #2d6b6b;
-                            color: white;
-                            border: none;
-                            padding: 10px 20px;
-                            border-radius: 5px;
-                            cursor: pointer;
-                            font-size: 14px;
-                        ">
-                            🖨️ Print Receipt
-                        </button>
-                        <button onclick="window.close()" style="
-                            background: #6c757d;
-                            color: white;
-                            border: none;
-                            padding: 10px 20px;
-                            border-radius: 5px;
-                            cursor: pointer;
-                            font-size: 14px;
-                            margin-left: 10px;
-                        ">
-                            ❌ Close
-                        </button>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-
-        // Open receipt in new window
-        const receiptWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
-        receiptWindow.document.write(receiptHtml);
-        receiptWindow.document.close();
-
-        // Focus on the new window
-        receiptWindow.focus();
-
-    } catch (error) {
-        console.error('Error generating receipt:', error);
-        alert('Failed to generate receipt. Please try again. Error: ' + error.message);
-    }
-}
-
-// Add this function to view student fee history and print all receipts
-async function viewStudentFeeHistory(studentId) {
-    try {
-        const student = studentsData.find(s => s.student_id === studentId);
-        if (!student) {
-            alert('Student not found!');
-            return;
-        }
-
-        // Get all fee records for this student
-        const studentFees = feesData.filter(f => f.student_id === studentId);
-        
-        if (studentFees.length === 0) {
-            alert('No fee records found for this student!');
-            return;
-        }
-
-        // Create modal to show fee history
-        const modalHtml = `
-            <div class="modal fade" id="feeHistoryModal" tabindex="-1">
-                <div class="modal-dialog modal-xl">
-                    <div class="modal-content">
-                        <div class="modal-header bg-primary text-white">
-                            <h5 class="modal-title">
-                                <i class="fas fa-file-invoice-dollar me-2"></i>
-                                Fee History - ${student.name} (${student.student_id})
-                            </h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <div class="card bg-light">
-                                        <div class="card-body">
-                                            <h6 class="card-title">Fee Summary</h6>
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <small class="text-muted">Total Fee:</small><br>
-                                                    <strong>₹${(student.fee_amount || 0).toLocaleString()}</strong>
-                                                </div>
-                                                <div class="col-6">
-                                                    <small class="text-muted">Total Paid:</small><br>
-                                                    <strong class="text-success">₹${(student.paid_amount || 0).toLocaleString()}</strong>
-                                                </div>
-                                            </div>
-                                            <div class="row mt-2">
-                                                <div class="col-6">
-                                                    <small class="text-muted">Due Amount:</small><br>
-                                                    <strong class="text-danger">₹${(student.due_amount || 0).toLocaleString()}</strong>
-                                                </div>
-                                                <div class="col-6">
-                                                    <small class="text-muted">Status:</small><br>
-                                                    <span class="badge ${getFeeStatusClass(student.fee_status)}">${student.fee_status}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card bg-light">
-                                        <div class="card-body text-center">
-                                            <button class="btn btn-success btn-sm" onclick="printAllReceipts('${studentId}')">
-                                                <i class="fas fa-print me-1"></i> Print All Receipts
-                                            </button>
-                                            <button class="btn btn-info btn-sm ms-2" onclick="exportStudentFeeHistory('${studentId}')">
-                                                <i class="fas fa-download me-1"></i> Export History
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="table-responsive">
-                                <table class="table table-hover table-sm">
-                                    <thead class="table-dark">
-                                        <tr>
-                                            <th>Receipt No</th>
-                                            <th>Date</th>
-                                            <th>Amount</th>
-                                            <th>Payment Mode</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${studentFees.map(fee => `
-                                            <tr>
-                                                <td><strong>${fee.receipt_no}</strong></td>
-                                                <td>${formatDate(fee.payment_date)}</td>
-                                                <td>₹${(fee.amount || 0).toLocaleString()}</td>
-                                                <td><span class="badge bg-secondary">${fee.payment_mode}</span></td>
-                                                <td><span class="badge bg-success">${fee.status}</span></td>
-                                                <td>
-                                                    <div class="btn-group btn-group-sm">
-                                                        <button class="btn btn-outline-primary" onclick="printReceipt('${fee.receipt_no}')" title="Print Receipt">
-                                                            <i class="fas fa-print"></i>
-                                                        </button>
-                                                        <button class="btn btn-outline-info" onclick="viewReceipt('${fee.receipt_no}')" title="View Details">
-                                                            <i class="fas fa-eye"></i>
-                                                        </button>
-                                                        <button class="btn btn-outline-danger" onclick="deleteFeeRecord('${fee.receipt_no}')" title="Delete">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Remove existing modal if any
-        const existingModal = document.getElementById('feeHistoryModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Add modal to body
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('feeHistoryModal'));
-        modal.show();
-
-    } catch (error) {
-        console.error('Error viewing fee history:', error);
-        alert('Failed to load fee history. Error: ' + error.message);
-    }
-}
-
-// Function to print all receipts for a student in A4 size
-async function printAllReceipts(studentId) {
-    try {
-        const student = studentsData.find(s => s.student_id === studentId);
-        if (!student) {
-            alert('Student not found!');
-            return;
-        }
-
-        const studentFees = feesData.filter(f => f.student_id === studentId);
-        
-        if (studentFees.length === 0) {
-            alert('No fee records found for this student!');
-            return;
-        }
-
-        // Create combined receipt HTML
-        let combinedReceiptHtml = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>All Receipts - ${student.name}</title>
-                <style>
-                    @page {
-                        size: A4;
-                        margin: 15mm;
-                    }
-                    
-                    * {
-                        margin: 0;
-                        padding: 0;
-                        box-sizing: border-box;
-                    }
-                    
-                    body {
-                        font-family: 'Arial', sans-serif;
-                        font-size: 12px;
-                        line-height: 1.4;
-                        color: #333;
-                        background: white;
-                    }
-                    
-                    .receipt-container {
-                        page-break-after: always;
-                        padding: 10px;
-                    }
-                    
-                    .header {
-                        text-align: center;
-                        border-bottom: 2px solid #333;
-                        padding-bottom: 8px;
-                        margin-bottom: 12px;
-                    }
-                    
-                    .institute-name {
-                        font-size: 20px;
-                        font-weight: bold;
-                        color: #2d6b6b;
-                        margin-bottom: 3px;
-                    }
-                    
-                    .receipt-title {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #333;
-                        margin-top: 8px;
-                    }
-                    
-                    .info-table {
-                        width: 100%;
-                        margin-bottom: 12px;
-                        border-collapse: collapse;
-                    }
-                    
-                    .info-table td {
-                        padding: 4px 8px;
-                        border: 1px solid #ddd;
-                        font-size: 11px;
-                    }
-                    
-                    .info-table td:first-child {
-                        font-weight: bold;
-                        background: #f5f5f5;
-                        width: 35%;
-                    }
-                    
-                    .amount-table {
-                        width: 100%;
-                        margin: 12px 0;
-                        border-collapse: collapse;
-                    }
-                    
-                    .amount-table th {
-                        background: #2d6b6b;
-                        color: white;
-                        padding: 6px;
-                        text-align: left;
-                        font-size: 11px;
-                        border: 1px solid #2d6b6b;
-                    }
-                    
-                    .amount-table td {
-                        padding: 5px 8px;
-                        border: 1px solid #ddd;
-                        font-size: 11px;
-                    }
-                    
-                    .amount-table .text-right {
-                        text-align: right;
-                    }
-                    
-                    .amount-table .highlight {
-                        background: #fff3cd;
-                        font-weight: bold;
-                    }
-                    
-                    .signature-section {
-                        display: flex;
-                        justify-content: space-between;
-                        margin-top: 30px;
-                    }
-                    
-                    .signature {
-                        text-align: center;
-                        width: 40%;
-                    }
-                    
-                    .signature-line {
-                        border-top: 1px solid #333;
-                        margin-top: 35px;
-                        margin-bottom: 5px;
-                    }
-                    
-                    .signature-label {
-                        font-size: 10px;
-                        color: #666;
-                    }
-                    
-                    .footer {
-                        text-align: center;
-                        margin-top: 15px;
-                        padding-top: 8px;
-                        border-top: 1px solid #ddd;
-                        font-size: 9px;
-                        color: #666;
-                    }
-                    
-                    @media print {
-                        .no-print {
-                            display: none !important;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="no-print" style="text-align: center; margin-bottom: 20px; padding: 20px;">
-                    <button onclick="window.print()" style="
-                        background: #2d6b6b;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        font-size: 14px;
-                        margin: 5px;
-                    ">
-                        🖨️ Print All Receipts
-                    </button>
-                    <button onclick="window.close()" style="
-                        background: #6c757d;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        font-size: 14px;
-                        margin: 5px;
-                    ">
-                        ❌ Close
-                    </button>
-                </div>
-        `;
-
-        // Add each receipt
-        studentFees.forEach((fee, index) => {
-            combinedReceiptHtml += `
-                <div class="receipt-container">
-                    <div class="header">
-                        <div class="institute-name">AACEM INSTITUTE</div>
-                        <div class="receipt-title">FEE PAYMENT RECEIPT</div>
-                    </div>
-
-                    <table class="info-table">
-                        <tr>
-                            <td>Receipt Number</td>
-                            <td><strong>${fee.receipt_no}</strong></td>
-                            <td>Student ID</td>
-                            <td><strong>${student.student_id}</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Payment Date</td>
-                            <td>${formatDate(fee.payment_date)}</td>
-                            <td>Student Name</td>
-                            <td>${student.name}</td>
-                        </tr>
-                        <tr>
-                            <td>Payment Mode</td>
-                            <td>${fee.payment_mode.toUpperCase()}</td>
-                            <td>Course</td>
-                            <td>${student.course}</td>
-                        </tr>
-                    </table>
-
-                    <table class="amount-table">
-                        <thead>
-                            <tr>
-                                <th>Description</th>
-                                <th class="text-right">Amount (₹)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="highlight">
-                                <td><strong>Payment Amount (${fee.status || 'Completed'})</strong></td>
-                                <td class="text-right"><strong>${(fee.amount || 0).toLocaleString()}</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div class="signature-section">
-                        <div class="signature">
-                            <div class="signature-line"></div>
-                            <div class="signature-label">Student/Parent Signature</div>
-                        </div>
-                        <div class="signature">
-                            <div class="signature-line"></div>
-                            <div class="signature-label">Authorized Signature</div>
-                        </div>
-                    </div>
-
-                    <div class="footer">
-                        <p>This is a computer generated receipt. No signature required.</p>
-                        <p>Receipt ${index + 1} of ${studentFees.length} | Generated on: ${new Date().toLocaleString()}</p>
-                    </div>
-                </div>
-            `;
-        });
-
-        combinedReceiptHtml += `
-            </body>
-            </html>
-        `;
-
-        // Open in new window
-        const printWindow = window.open('', '_blank', 'width=900,height=700');
-        printWindow.document.write(combinedReceiptHtml);
-        printWindow.document.close();
-        printWindow.focus();
-
-    } catch (error) {
-        console.error('Error printing all receipts:', error);
-        alert('Failed to print receipts. Error: ' + error.message);
-    }
-}
-
-// Function to export student fee history as CSV
-async function exportStudentFeeHistory(studentId) {
-    try {
-        const student = studentsData.find(s => s.student_id === studentId);
-        if (!student) {
-            alert('Student not found!');
-            return;
-        }
-
-        const studentFees = feesData.filter(f => f.student_id === studentId);
-        
-        if (studentFees.length === 0) {
-            alert('No fee records found for this student!');
-            return;
-        }
-
-        // Create CSV content
-        let csvContent = "Fee History for " + student.name + " (" + student.student_id + ")\n\n";
-        csvContent += "Receipt No,Payment Date,Amount,Payment Mode,Status,Course\n";
-        
-        studentFees.forEach(fee => {
-            csvContent += `"${fee.receipt_no}","${formatDate(fee.payment_date)}","${fee.amount}","${fee.payment_mode}","${fee.status}","${student.course}"\n`;
-        });
-
-        csvContent += `\nSummary\n`;
-        csvContent += `Total Fee,${student.fee_amount}\n`;
-        csvContent += `Total Paid,${student.paid_amount}\n`;
-        csvContent += `Due Amount,${student.due_amount}\n`;
-        csvContent += `Fee Status,${student.fee_status}\n`;
-        csvContent += `Generated on,${new Date().toLocaleString()}\n`;
-
-        // Create and download CSV file
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `fee_history_${student.student_id}_${new Date().getTime()}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-
-        showSuccess('Fee history exported successfully!');
-
-    } catch (error) {
-        console.error('Error exporting fee history:', error);
-        alert('Failed to export fee history. Error: ' + error.message);
-    }
-}
-
-// Update the fees table to include print buttons
-function updateFeesTable() {
-    const tbody = document.getElementById('feesTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (feesData.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="9" class="text-center py-4">
-                    <div class="empty-state">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <p>No fee records found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-
-    
-    feesData.forEach(fee => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${fee.receipt_no || 'N/A'}</td>
-            <td>${fee.student_name || 'Unknown'}</td>
-            <td>${fee.course || 'No Course'}</td>
-            <td>₹${(fee.amount || 0).toLocaleString()}</td>
-            <td>${formatDate(fee.payment_date)}</td>
-            <td>${fee.payment_mode || 'Unknown'}</td>
-            <td><span class="status-badge bg-success">${fee.status || 'Unknown'}</span></td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-success btn-action" onclick="printReceipt('${fee.receipt_no}')" title="Print Receipt">
-                        <i class="fas fa-print"></i>
-                    </button>
-                    <button class="btn btn-info btn-action" onclick="viewStudentFeeHistory('${fee.student_id}')" title="View History">
-                        <i class="fas fa-history"></i>
-                    </button>
-                    <button class="btn btn-danger btn-action" onclick="deleteFeeRecord('${fee.receipt_no}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Also update the viewReceipt function to include print option
-function viewReceipt(receiptNo) {
-    const fee = feesData.find(f => f.receipt_no === receiptNo);
-    if (fee) {
-        const student = studentsData.find(s => s.student_id === fee.student_id);
-        let details = `Receipt Details:\n\n`;
-        details += `Receipt No: ${fee.receipt_no}\n`;
-        details += `Student: ${fee.student_name}\n`;
-        details += `Course: ${fee.course}\n`;
-        details += `Amount: ₹${fee.amount}\n`;
-        details += `Payment Date: ${formatDate(fee.payment_date)}\n`;
-        details += `Payment Mode: ${fee.payment_mode}\n`;
-        details += `Status: ${fee.status}\n\n`;
-        
-        if (student) {
-            details += `Student Details:\n`;
-            details += `Total Fee: ₹${student.fee_amount || 0}\n`;
-            details += `Total Paid: ₹${student.paid_amount || 0}\n`;
-            details += `Due Amount: ₹${student.due_amount || 0}\n`;
-            details += `Fee Status: ${student.fee_status}\n\n`;
-        }
-        
-        details += `Do you want to print this receipt?`;
-        
-        if (confirm(details)) {
-            printReceipt(receiptNo);
-        }
-    }
-}
-
-// View individual class attendance
-async function viewClassAttendance(className) {
-    try {
-        const response = await fetch(`${api}/api/attendance/class/${className}`);
-        
-        if (!response.ok) {
-            if (response.status === 404) {
-                // Show message when no attendance records found
-                showInfo(`No attendance records found for ${className}`);
-                return;
-            }
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Check if there are any attendance records
-            if (!result.attendance || result.attendance.length === 0) {
-                showInfo(`No attendance records found for ${className}`);
-                return;
-            }
-            
-            // Create a modal to show class attendance
-            const modalHtml = `
-                <div class="modal fade" id="classAttendanceModal" tabindex="-1">
-                    <div class="modal-dialog modal-xl">
-                        <div class="modal-content">
-                            <div class="modal-header bg-primary text-white">
-                                <h5 class="modal-title">
-                                    <i class="fas fa-calendar-check me-2"></i>
-                                    Attendance for ${className}
-                                </h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Present</th>
-                                                <th>Absent</th>
-                                                <th>Percentage</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${result.attendance.map(record => `
-                                                <tr>
-                                                    <td>${formatDate(record.date)}</td>
-                                                    <td><span class="badge bg-success">${record.present_count}</span></td>
-                                                    <td><span class="badge bg-danger">${record.absent_count}</span></td>
-                                                    <td>
-                                                        <div class="d-flex align-items-center">
-                                                            <div class="progress flex-grow-1 me-2" style="height: 8px;">
-                                                                <div class="progress-bar ${(record.percentage || 0) >= 80 ? 'bg-success' : (record.percentage || 0) >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                                                                     style="width: ${record.percentage}%"></div>
-                                                            </div>
-                                                            <span>${record.percentage}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="btn-group btn-group-sm">
-                                                            <button class="btn btn-info" onclick="viewAttendanceDetails(${record.id})" title="View Details">
-                                                                <i class="fas fa-eye"></i>
-                                                            </button>
-                                                            <button class="btn btn-danger" onclick="deleteAttendance(${record.id})" title="Delete">
-                                                                <i class="fas fa-trash"></i>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Remove existing modal if any
-            const existingModal = document.getElementById('classAttendanceModal');
-            if (existingModal) {
-                existingModal.remove();
-            }
-            
-            // Add modal to body
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            
-            // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('classAttendanceModal'));
-            modal.show();
-        } else {
-            showError('Failed to load class attendance: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Error viewing class attendance:', error);
-        showError('Failed to load class attendance: ' + error.message);
-    }
-}
-
-// Add this helper function for info messages
-function showInfo(message) {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) {
-        syncStatus.className = 'sync-status bg-info text-white';
-        syncStatus.innerHTML = `<i class="fas fa-info-circle me-2"></i> ${message}`;
-        syncStatus.style.display = 'block';
-        
-        setTimeout(() => {
-            syncStatus.style.display = 'none';
-        }, 3000);
-    }
-}
-
-
-console.log('Dashboard JavaScript loaded successfully');
-
+    app.run(debug=True, port=5000, host='0.0.0.0')
