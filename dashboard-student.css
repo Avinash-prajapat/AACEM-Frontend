@@ -1,0 +1,159 @@
+/* ========================
+   Body & Global
+======================== */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+}
+
+/* ========================
+   Header
+======================== */
+.navbar {
+    background-color: rgb(45, 107, 107) !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 1030;
+}
+
+.navbar .navbar-brand i {
+    color: #00b4d8;
+}
+
+/* ========================
+   Sidebar
+======================== */
+#studentSidebar {
+    position: fixed;
+    top: 56px; /* header height */
+    left: 0;
+    width: 250px;
+    height: calc(100vh - 56px);
+    background-color: #343a40;
+    padding-top: 20px;
+    overflow-y: auto;
+}
+
+#studentSidebar h4 {
+    padding-left: 15px;
+    margin-bottom: 10px;
+    color: #00b4d8;
+}
+
+#studentSidebar .nav-link {
+    color: #adb5bd;
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    transition: 0.3s;
+}
+
+#studentSidebar .nav-link i {
+    margin-right: 10px;
+    color: #0dcaf0;
+}
+
+#studentSidebar .nav-link:hover,
+#studentSidebar .nav-link.active {
+    background: linear-gradient(90deg, #00b4d8, #0077b6);
+    color: #fff;
+}
+
+/* ========================
+   Main Content
+======================== */
+#studentMain {
+    margin-left: 250px;
+    padding: 30px 20px 20px 20px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+}
+
+/* ========================
+   Cards
+======================== */
+.studentCard {
+    background-color: #fff;
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.studentCard:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.studentCard h4 i {
+    color: #0077b6;
+}
+
+/* ========================
+   Tables
+======================== */
+table {
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #fff;
+}
+
+.table th, .table td {
+    vertical-align: middle !important;
+}
+
+/* ========================
+   Buttons
+======================== */
+.btn-success {
+    background-color: #0077b6;
+    border: none;
+    transition: 0.3s;
+}
+
+.btn-success:hover {
+    background-color: #00b4d8;
+}
+
+/* ========================
+   Scrollbar
+======================== */
+#studentMain::-webkit-scrollbar {
+    width: 10px;
+}
+
+#studentMain::-webkit-scrollbar-track {
+    background: #e9ecef;
+    border-radius: 10px;
+}
+
+#studentMain::-webkit-scrollbar-thumb {
+    background: #0077b6;
+    border-radius: 10px;
+}
+
+#studentMain::-webkit-scrollbar-thumb:hover {
+    background: #00b4d8;
+}
+
+/* ========================
+   Responsive Design
+======================== */
+@media (max-width: 992px) {
+    #studentSidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        top: 0;
+    }
+
+    #studentMain {
+        margin-left: 0;
+        height: auto;
+        padding-top: 20px;
+    }
+}

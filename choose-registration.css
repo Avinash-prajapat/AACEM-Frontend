@@ -1,0 +1,97 @@
+/* Body */
+body {
+  background: #f8f9fa;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Heading */
+h2 {
+  font-weight: 600;
+  color: #1f2a38;
+}
+
+/* Role Cards */
+.role-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 15px;
+  background-color: #ffffff;
+}
+
+.role-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.role-card i {
+  color: #0d6efd;
+}
+
+/* Footer */
+.footer {
+  background: #1f2a38;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .role-card {
+    padding: 30px 15px;
+  }
+  h2 {
+    font-size: 1.5rem;
+  }
+}
+
+/* --- Footer --- */
+footer.footer {
+    background-color: #1f2a38;
+    color: #cfd8dc;
+    padding: 60px 0;
+}
+
+footer.footer h4,
+footer.footer h5 {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+footer.footer a {
+    color: #cfd8dc;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+footer.footer a:hover {
+    color: #0d6efd;
+}
+
+/* Newsletter input */
+footer.footer .input-group input {
+    border-radius: 10px 0 0 10px;
+    border: none;
+    padding: 12px 15px;
+}
+
+footer.footer .input-group button {
+    border-radius: 0 10px 10px 0;
+    padding: 12px 20px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    .module-section .card {
+        padding: 25px 20px;
+    }
+
+    footer.footer .input-group {
+        flex-direction: column;
+    }
+
+    footer.footer .input-group input,
+    footer.footer .input-group button {
+        border-radius: 10px;
+        margin-bottom: 10px;
+        width: 100%;
+    }
+}

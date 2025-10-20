@@ -1,0 +1,163 @@
+/* --- Body & General --- */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f6f9;
+    margin: 0;
+    padding: 0;
+}
+
+/* --- Navbar --- */
+.navbar {
+    background-color: #0d6efd;
+    padding: 15px 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.navbar .navbar-brand {
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.4rem;
+}
+
+/* --- Login Section --- */
+.module-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh;
+    padding: 50px 15px;
+}
+
+.module-section .card {
+    width: 100%;
+    max-width: 500px;
+    border-radius: 12px;
+    box-shadow: 0 6px 25px rgba(0,0,0,0.15);
+    padding: 35px 25px;
+    background-color: #ffffff;
+    transition: all 0.3s ease;
+}
+
+.module-section .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+}
+
+/* --- Card Title --- */
+.card-title {
+    font-weight: 700;
+    font-size: 1.6rem;
+    color: #0d6efd;
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+/* --- Form Inputs --- */
+.form-control {
+    border-radius: 10px;
+    padding: 12px 15px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.25);
+}
+
+/* --- Form Check --- */
+.form-check-label {
+    font-size: 0.95rem;
+}
+
+/* --- Button --- */
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0b5ed7;
+}
+
+/* --- Login Roles (links) --- */
+.login-role {
+    font-weight: 500;
+    color: #0d6efd;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.login-role:hover {
+    color: #0b5ed7;
+    text-decoration: underline;
+}
+
+/* --- Footer --- */
+footer.footer {
+    background-color: #1f2a38;
+    color: #cfd8dc;
+    padding: 60px 0;
+}
+
+footer.footer h4,
+footer.footer h5 {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+footer.footer a {
+    color: #cfd8dc;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+footer.footer a:hover {
+    color: #0d6efd;
+}
+
+/* Footer Newsletter */
+footer.footer .input-group input {
+    border-radius: 10px 0 0 10px;
+    border: none;
+    padding: 12px 15px;
+}
+
+footer.footer .input-group button {
+    border-radius: 0 10px 10px 0;
+    padding: 12px 20px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 992px) {
+    .module-section {
+        padding: 40px 15px;
+    }
+    .module-section .card {
+        padding: 30px 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .module-section {
+        padding: 30px 15px;
+    }
+
+    footer.footer .input-group {
+        flex-direction: column;
+    }
+
+    footer.footer .input-group input,
+    footer.footer .input-group button {
+        border-radius: 10px;
+        margin-bottom: 10px;
+        width: 100%;
+    }
+}

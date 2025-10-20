@@ -1,0 +1,108 @@
+/* --- Body --- */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f6f9;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* --- Navbar --- */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: rgb(45, 107, 107) !important;
+    width: 100%;
+    z-index: 1050;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* --- Sidebar --- */
+.dashboard-sidebar {
+    position: fixed;
+    top: 56px; /* navbar height */
+    left: 0;
+    width: 220px;
+    height: calc(100vh - 56px);
+    background-color: #343a40;
+    padding-top: 20px;
+    overflow-y: auto;
+}
+
+.dashboard-sidebar .text-center h4,
+.dashboard-sidebar .text-center p {
+    color: #fff;
+    margin: 0;
+}
+
+.dashboard-sidebar .nav-link {
+    color: #cfd8dc;
+    padding: 12px 20px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s;
+}
+
+.dashboard-sidebar .nav-link:hover,
+.dashboard-sidebar .nav-link.active {
+    background-color: #0e4d8d;
+    color: #fff;
+}
+
+.dashboard-sidebar .nav-link i {
+    margin-right: 10px;
+}
+
+/* --- Main content --- */
+.dashboard-content {
+    margin-left: 220px; /* sidebar width */
+    padding: 80px 30px 30px 30px;
+}
+
+/* --- Cards --- */
+.card {
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: none;
+}
+
+/* --- Tables --- */
+.table-hover tbody tr:hover {
+    background-color: #f1f5f9;
+}
+
+/* --- Sidebar scrollbar --- */
+.dashboard-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dashboard-sidebar::-webkit-scrollbar-thumb {
+    background-color: #495057;
+    border-radius: 3px;
+}
+
+/* --- Responsive --- */
+@media(max-width:992px){
+    .dashboard-sidebar {
+        width:180px;
+    }
+    .dashboard-content {
+        margin-left:180px;
+        padding: 100px 15px 15px 15px;
+    }
+}
+
+@media(max-width:768px){
+    .dashboard-sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+    }
+    .dashboard-content {
+        margin-left: 0;
+        padding: 20px 15px;
+    }
+}
