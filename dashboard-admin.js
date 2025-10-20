@@ -1,4 +1,4 @@
-
+const api = "https://aacem-backend.onrender.com"
 
 
 // Global variables
@@ -3272,5 +3272,6 @@ function showInfo(message) {
         }, 3000);
     }
 }
+
 
 console.log('Dashboard JavaScript loaded successfully');
