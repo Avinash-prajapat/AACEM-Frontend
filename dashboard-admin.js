@@ -1848,7 +1848,7 @@ async function exportData(type) {
 function logout() {
     if (confirm("Are you sure you want to log out?")) {
         alert("You have been logged out!");
-        window.location.href = "login.html";
+        window.location.href = "index.html";
     }
 }
 
@@ -3274,3 +3274,4 @@ function showInfo(message) {
 }
 
 console.log('Dashboard JavaScript loaded successfully');
+
