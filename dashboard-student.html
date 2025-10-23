@@ -204,18 +204,18 @@
       font-size: 0.9rem;
       opacity: 0.9;
     }
-
-    <!-- Toggle bar for attandace -->
+    
+    /* Attendance Details */
     .attendance-details {
       max-height: 0;
       overflow: hidden;
       transition: max-height 0.5s ease;
     }
-    
+
     .attendance-details.show {
       max-height: 1000px;
     }
-    
+
     .attendance-toggle {
       cursor: pointer;
       color: #0077b6;
@@ -228,24 +228,24 @@
       border-radius: 5px;
       transition: all 0.3s ease;
     }
-    
+
     .attendance-toggle:hover {
       background-color: #0077b6;
       color: white;
     }
-    
+
     .attendance-toggle.active {
       background-color: #0077b6;
       color: white;
     }
-    
+
     .attendance-toggle i {
       transition: transform 0.3s ease;
     }
-    
+
     .attendance-toggle.active i {
       transform: rotate(180deg);
-    }
+    }                           
   </style>
 </head>
 <body>
@@ -459,8 +459,8 @@
       }
     }
 
-    // Load Attendance Data
-      async function loadAttendance() {
+            // Load Attendance Data
+        async function loadAttendance() {
           try {
             const response = await fetch(`${API_BASE_URL}/student-attendance/${STUDENT_ID}`);
             const result = await response.json();
@@ -925,7 +925,4 @@
 
   </script>
 </body>
-
 </html>
-
-
