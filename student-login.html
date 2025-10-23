@@ -331,8 +331,10 @@
           showAlert('✅ Login successful! Redirecting...', 'success');
           
           // Store student data in localStorage
-          localStorage.setItem('studentToken', result.token || 'student-auth');
-          localStorage.setItem('studentData', JSON.stringify(result.student));
+          sessionStorage.setItem('studentToken', result.token || 'student-auth');
+          sessionStorage.setItem('studentData', JSON.stringify(result.student));
+          sessionStorage.setItem('loginTime', new Date().getTime().toString());
+          
           
           // Redirect to dashboard after short delay
           setTimeout(() => {
@@ -358,3 +360,4 @@
 </body>
 
 </html>
+
