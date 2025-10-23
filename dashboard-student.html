@@ -460,166 +460,166 @@
     }
 
     // Load Attendance Data
-    async function loadAttendance() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-attendance/${STUDENT_ID}`);
-        const result = await response.json();
-        
-        if (result.success && result.attendance) {
-          const attendance = result.attendance;
-          
-          document.getElementById('attendanceContent').innerHTML = `
-            <div class="row mb-4">
-              <div class="col-md-6">
-                <div class="stats-card">
-                  <div class="number">${attendance.percentage}%</div>
-                  <div class="label">Overall Attendance</div>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                  <div class="number">${attendance.present_days}</div>
-                  <div class="label">Present Days</div>
-                </div>
-              </div>
-            </div>
-            <div class="mb-3">
-              <p><strong>Attendance Progress:</strong></p>
-              <div class="progress">
-                <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                     style="width: ${attendance.percentage}%">
-                  ${attendance.percentage}%
-                </div>
-              </div>
-            </div>
-            <div class="row text-center">
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.present_days}</strong><br>
-                  <small>Present</small>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.absent_days}</strong><br>
-                  <small>Absent</small>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.total_days}</strong><br>
-                  <small>Total</small>
-                </div>
-              </div>
-            </div>
-            <div class="attendance-toggle mt-3" onclick="toggleAttendanceDetails()">
-              <i class="fas fa-chevron-down me-2"></i>
-              View Detailed Attendance
-            </div>
-            <div class="attendance-details mt-3" id="attendanceDetails">
-              <div class="loading">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Click above to load detailed attendance...</p>
-              </div>
-            </div>
-          `;
-        } else {
-          document.getElementById('attendanceContent').innerHTML = `
-            <div class="alert alert-warning">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              Attendance data not available
-            </div>
-          `;
-        }
-      } catch (error) {
-        console.error('Error loading attendance:', error);
-        document.getElementById('attendanceContent').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load attendance data
-          </div>
-        `;
-      }
-    }
-    
-    // Load detailed attendance with dates
-    async function loadDetailedAttendance() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-attendance-details/${STUDENT_ID}`);
-        
-        if (!response.ok) {
-          throw new Error(`API error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.attendance_details && result.attendance_details.length > 0) {
-          const attendanceDetails = result.attendance_details;
-          
-          let tableHTML = `
-            <div class="table-responsive">
-              <table class="table table-bordered table-hover">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th>Class</th>
-                    <th>Status</th>
-                    <th>Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-          `;
-          
-          attendanceDetails.forEach(item => {
-            const date = new Date(item.date);
-            const formattedDate = date.toLocaleDateString('en-IN', {
-              day: '2-digit',
-              month: '2-digit', 
-              year: 'numeric'
-            });
+      async function loadAttendance() {
+          try {
+            const response = await fetch(`${API_BASE_URL}/student-attendance/${STUDENT_ID}`);
+            const result = await response.json();
             
-            const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
-            
-            tableHTML += `
-              <tr>
-                <td>${formattedDate}</td>
-                <td>${dayName}</td>
-                <td>${item.class || 'N/A'}</td>
-                <td>
-                  <span class="badge bg-${item.status === 'Present' ? 'success' : 'danger'}">
-                    ${item.status}
-                  </span>
-                </td>
-                <td>${item.remarks || '-'}</td>
-              </tr>
+            if (result.success && result.attendance) {
+              const attendance = result.attendance;
+              
+              document.getElementById('attendanceContent').innerHTML = `
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="stats-card">
+                      <div class="number">${attendance.percentage}%</div>
+                      <div class="label">Overall Attendance</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                      <div class="number">${attendance.present_days}</div>
+                      <div class="label">Present Days</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <p><strong>Attendance Progress:</strong></p>
+                  <div class="progress">
+                    <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                        style="width: ${attendance.percentage}%">
+                      ${attendance.percentage}%
+                    </div>
+                  </div>
+                </div>
+                <div class="row text-center">
+                  <div class="col-4">
+                    <div class="border rounded p-2 bg-light">
+                      <strong>${attendance.present_days}</strong><br>
+                      <small>Present</small>
+                    </div>
+                  </div>
+                  <div class="col-4">
+                    <div class="border rounded p-2 bg-light">
+                      <strong>${attendance.absent_days}</strong><br>
+                      <small>Absent</small>
+                    </div>
+                  </div>
+                  <div class="col-4">
+                    <div class="border rounded p-2 bg-light">
+                      <strong>${attendance.total_days}</strong><br>
+                      <small>Total</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="attendance-toggle mt-3" onclick="toggleAttendanceDetails()">
+                  <i class="fas fa-chevron-down me-2"></i>
+                  View Detailed Attendance
+                </div>
+                <div class="attendance-details mt-3" id="attendanceDetails">
+                  <div class="loading">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Click above to load detailed attendance...</p>
+                  </div>
+                </div>
+              `;
+            } else {
+              document.getElementById('attendanceContent').innerHTML = `
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  Attendance data not available
+                </div>
+              `;
+            }
+          } catch (error) {
+            console.error('Error loading attendance:', error);
+            document.getElementById('attendanceContent').innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load attendance data
+              </div>
             `;
-          });
-          
-          tableHTML += `</tbody></table></div>`;
-          
-          document.getElementById('attendanceDetails').innerHTML = tableHTML;
-        } else {
-          document.getElementById('attendanceDetails').innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle me-2"></i>
-              No attendance records found.
-            </div>
-          `;
+          }
         }
-      } catch (error) {
-        console.error('Error loading detailed attendance:', error);
-        document.getElementById('attendanceDetails').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load attendance details
-          </div>
-        `;
-      }
-    }
-    
+
+        // Load detailed attendance with dates
+        async function loadDetailedAttendance() {
+          try {
+            const response = await fetch(`${API_BASE_URL}/student-attendance-details/${STUDENT_ID}`);
+            
+            if (!response.ok) {
+              throw new Error(`API error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.attendance_details && result.attendance_details.length > 0) {
+              const attendanceDetails = result.attendance_details;
+              
+              let tableHTML = `
+                <div class="table-responsive">
+                  <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th>Class</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+              `;
+              
+              attendanceDetails.forEach(item => {
+                const date = new Date(item.date);
+                const formattedDate = date.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: '2-digit', 
+                  year: 'numeric'
+                });
+                
+                const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
+                
+                tableHTML += `
+                  <tr>
+                    <td>${formattedDate}</td>
+                    <td>${dayName}</td>
+                    <td>${item.class || 'N/A'}</td>
+                    <td>
+                      <span class="badge bg-${item.status === 'Present' ? 'success' : 'danger'}">
+                        ${item.status}
+                      </span>
+                    </td>
+                    <td>${item.remarks || '-'}</td>
+                  </tr>
+                `;
+              });
+              
+              tableHTML += `</tbody></table></div>`;
+              
+              document.getElementById('attendanceDetails').innerHTML = tableHTML;
+            } else {
+              document.getElementById('attendanceDetails').innerHTML = `
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i>
+                  No attendance records found.
+                </div>
+              `;
+            }
+          } catch (error) {
+            console.error('Error loading detailed attendance:', error);
+            document.getElementById('attendanceDetails').innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load attendance details
+              </div>
+            `;
+          }
+        }
+
     // Toggle attendance details visibility
     async function toggleAttendanceDetails() {
       const toggle = document.querySelector('.attendance-toggle');
@@ -927,4 +927,5 @@
 </body>
 
 </html>
+
 
