@@ -369,544 +369,667 @@
     // API Configuration
     const API_BASE_URL = 'https://aacem-backend.onrender.com/api';
 
-    // Get student data from localStorage
-    const studentData = JSON.parse(localStorage.getItem('studentData') || '{}');
-    const STUDENT_ID = studentData.student_id;
+    // Session timeout configuration (30 minutes)
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+    let sessionTimer;
 
-    // Check if student is logged in
-    if (!STUDENT_ID) {
-      alert('Please login first');
-      window.location.href = 'student-login.html';
+    // 🔒 STRICT SECURITY CHECK - sessionStorage use करें
+    const studentData = JSON.parse(sessionStorage.getItem('studentData') || '{}');
+    const STUDENT_ID = studentData.student_id;
+    const loginTime = sessionStorage.getItem('loginTime');
+
+    // Check session timeout
+    function checkSessionTimeout() {
+        if (!loginTime) {
+            logoutDueToTimeout();
+            return false;
+        }
+
+        const currentTime = new Date().getTime();
+        const sessionStartTime = parseInt(loginTime);
+
+        if (currentTime - sessionStartTime > SESSION_TIMEOUT) {
+            logoutDueToTimeout();
+            return false;
+        }
+
+        return true;
     }
+
+    // Logout due to timeout
+    function logoutDueToTimeout() {
+        alert('🕒 Session expired due to inactivity. Please login again.');
+        sessionStorage.removeItem('studentToken');
+        sessionStorage.removeItem('studentData');
+        sessionStorage.removeItem('loginTime');
+        window.location.href = 'student-login.html';
+    }
+
+    // Start session timer
+    function startSessionTimer() {
+        // Reset timer on user activity
+        const resetTimer = () => {
+            clearTimeout(sessionTimer);
+            sessionTimer = setTimeout(logoutDueToTimeout, SESSION_TIMEOUT);
+        };
+
+        // Add event listeners for user activity
+        const events = ['mousedown', 'mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
+        events.forEach(event => {
+            document.addEventListener(event, resetTimer, false);
+        });
+
+        // Start the timer
+        resetTimer();
+    }
+
+    // अगर student login नहीं है या session expired है तो...
+    if (!STUDENT_ID || !checkSessionTimeout()) {
+        alert('🔒 Authentication Required! Please login to access the student dashboard');
+        window.location.href = 'student-login.html';
+        throw new Error('Unauthorized access');
+    }
+
+    // 🔒 STRICT BROWSER NAVIGATION SECURITY
+    // Prevent any back/forward navigation
+    history.pushState(null, null, window.location.href);
+    
+    window.addEventListener('popstate', function(event) {
+        // Immediately redirect to dashboard if user tries to navigate back/forward
+        history.pushState(null, null, window.location.href);
+        
+        // Show warning message
+        console.log('⚠️ Navigation blocked - User tried to use back/forward buttons');
+    });
+
+    // ✅ SIMPLE SECURITY - WITHOUT beforeunload (जो error दे रहा था)
 
     // Main function to load all data
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('Loading student dashboard data for:', STUDENT_ID);
-      updateWelcomeMessage();
-      loadStudentData();
+        // फिर से check करें
+        if (!STUDENT_ID || !checkSessionTimeout()) {
+            alert('Invalid session! Login again.');
+            window.location.href = 'student-login.html';
+            return;
+        }
+        
+        // Start session timeout timer
+        startSessionTimer();
+        
+        console.log('Loading student dashboard data for:', STUDENT_ID);
+        updateWelcomeMessage();
+        loadStudentData();
+        
+        // Add session time display
+        updateSessionTimeDisplay();
     });
+
+    // Update session time display
+    function updateSessionTimeDisplay() {
+        const sessionTimeElement = document.createElement('div');
+        sessionTimeElement.id = 'sessionTimer';
+        sessionTimeElement.style.cssText = `
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+        `;
+        
+        function updateTime() {
+            const loginTime = parseInt(sessionStorage.getItem('loginTime'));
+            const currentTime = new Date().getTime();
+            const elapsed = currentTime - loginTime;
+            const remaining = SESSION_TIMEOUT - elapsed;
+            
+            if (remaining <= 0) {
+                logoutDueToTimeout();
+                return;
+            }
+            
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            
+            sessionTimeElement.textContent = `Session: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Change color when less than 5 minutes remaining
+            if (minutes < 5) {
+                sessionTimeElement.style.background = '#dc3545';
+            } else if (minutes < 10) {
+                sessionTimeElement.style.background = '#ffc107';
+                sessionTimeElement.style.color = '#000';
+            }
+        }
+        
+        document.body.appendChild(sessionTimeElement);
+        setInterval(updateTime, 1000);
+        updateTime();
+    }
 
     // Update welcome message
     function updateWelcomeMessage() {
-      document.getElementById('welcomeText').textContent = `Welcome, ${studentData.name || 'Student'}`;
+        document.getElementById('welcomeText').textContent = `Welcome, ${studentData.name || 'Student'}`;
     }
 
     // Load all student data
     async function loadStudentData() {
-      try {
-        // Load all data in parallel
-        await Promise.all([
-          loadProfile(),
-          loadAttendance(),
-          loadResults(),
-          loadFees(),
-          loadNotices()
-        ]);
-        
-        // Timetable can be loaded separately as it might not exist yet
-        await loadTimetable();
-        
-        console.log('All student data loaded successfully');
-        
-      } catch (error) {
-        console.error('Error loading student data:', error);
-        showError('Failed to load data. Please refresh the page.');
-      }
+        try {
+            // Load all data in parallel
+            await Promise.all([
+                loadProfile(),
+                loadAttendance(),
+                loadResults(),
+                loadFees(),
+                loadNotices()
+            ]);
+            
+            // Timetable can be loaded separately as it might not exist yet
+            await loadTimetable();
+            
+            console.log('All student data loaded successfully');
+            
+        } catch (error) {
+            console.error('Error loading student data:', error);
+            showError('Failed to load data. Please refresh the page.');
+        }
     }
 
     // Load Profile Data
     async function loadProfile() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-profile/${STUDENT_ID}`);
-        const result = await response.json();
-        
-        if (result.success && result.student) {
-          const student = result.student;
-          
-          document.getElementById('profileContent').innerHTML = `
-            <div class="row">
-              <div class="col-md-6">
-                <p><strong>Name:</strong> ${student.name}</p>
-                <p><strong>Student ID:</strong> ${student.student_id}</p>
-                <p><strong>Course:</strong> ${student.course}</p>
-                <p><strong>Parent Name:</strong> ${student.parent_name || 'N/A'}</p>
-              </div>
-              <div class="col-md-6">
-                <p><strong>Join Date:</strong> ${student.join_date}</p>
-                <p><strong>Phone:</strong> ${student.phone}</p>
-                <p><strong>Email:</strong> ${student.email || 'N/A'}</p>
-                <p><strong>Fee Status:</strong> <span class="badge bg-${getFeeStatusColor(student.fee_status)}">${student.fee_status}</span></p>
-              </div>
-            </div>
-            ${student.address ? `<div class="mt-3"><strong>Address:</strong><br>${student.address}</div>` : ''}
-          `;
-        } else {
-          document.getElementById('profileContent').innerHTML = `
-            <div class="alert alert-warning">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              Profile data not available
-            </div>
-          `;
+        try {
+            const response = await fetch(`${API_BASE_URL}/student-profile/${STUDENT_ID}`);
+            const result = await response.json();
+            
+            if (result.success && result.student) {
+                const student = result.student;
+                
+                document.getElementById('profileContent').innerHTML = `
+                    <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Name:</strong> ${student.name}</p>
+                        <p><strong>Student ID:</strong> ${student.student_id}</p>
+                        <p><strong>Course:</strong> ${student.course}</p>
+                        <p><strong>Parent Name:</strong> ${student.parent_name || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Join Date:</strong> ${student.join_date}</p>
+                        <p><strong>Phone:</strong> ${student.phone}</p>
+                        <p><strong>Email:</strong> ${student.email || 'N/A'}</p>
+                        <p><strong>Fee Status:</strong> <span class="badge bg-${getFeeStatusColor(student.fee_status)}">${student.fee_status}</span></p>
+                    </div>
+                    </div>
+                    ${student.address ? `<div class="mt-3"><strong>Address:</strong><br>${student.address}</div>` : ''}
+                `;
+            } else {
+                document.getElementById('profileContent').innerHTML = `
+                    <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Profile data not available
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            document.getElementById('profileContent').innerHTML = `
+                <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load profile data
+                </div>
+            `;
         }
-      } catch (error) {
-        console.error('Error loading profile:', error);
-        document.getElementById('profileContent').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load profile data
-          </div>
-        `;
-      }
     }
 
-            // Load Attendance Data
-        async function loadAttendance() {
-          try {
+    // Load Attendance Data
+    async function loadAttendance() {
+        try {
             const response = await fetch(`${API_BASE_URL}/student-attendance/${STUDENT_ID}`);
             const result = await response.json();
             
             if (result.success && result.attendance) {
-              const attendance = result.attendance;
-              
-              document.getElementById('attendanceContent').innerHTML = `
-                <div class="row mb-4">
-                  <div class="col-md-6">
-                    <div class="stats-card">
-                      <div class="number">${attendance.percentage}%</div>
-                      <div class="label">Overall Attendance</div>
+                const attendance = result.attendance;
+                
+                document.getElementById('attendanceContent').innerHTML = `
+                    <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="stats-card">
+                        <div class="number">${attendance.percentage}%</div>
+                        <div class="label">Overall Attendance</div>
+                        </div>
                     </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                      <div class="number">${attendance.present_days}</div>
-                      <div class="label">Present Days</div>
+                    <div class="col-md-6">
+                        <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="number">${attendance.present_days}</div>
+                        <div class="label">Present Days</div>
+                        </div>
                     </div>
-                  </div>
-                </div>
-                <div class="mb-3">
-                  <p><strong>Attendance Progress:</strong></p>
-                  <div class="progress">
-                    <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                        style="width: ${attendance.percentage}%">
-                      ${attendance.percentage}%
                     </div>
-                  </div>
-                </div>
-                <div class="row text-center">
-                  <div class="col-4">
-                    <div class="border rounded p-2 bg-light">
-                      <strong>${attendance.present_days}</strong><br>
-                      <small>Present</small>
+                    <div class="mb-3">
+                    <p><strong>Attendance Progress:</strong></p>
+                    <div class="progress">
+                        <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                            style="width: ${attendance.percentage}%">
+                        ${attendance.percentage}%
+                        </div>
                     </div>
-                  </div>
-                  <div class="col-4">
-                    <div class="border rounded p-2 bg-light">
-                      <strong>${attendance.absent_days}</strong><br>
-                      <small>Absent</small>
                     </div>
-                  </div>
-                  <div class="col-4">
-                    <div class="border rounded p-2 bg-light">
-                      <strong>${attendance.total_days}</strong><br>
-                      <small>Total</small>
+                    <div class="row text-center">
+                    <div class="col-4">
+                        <div class="border rounded p-2 bg-light">
+                        <strong>${attendance.present_days}</strong><br>
+                        <small>Present</small>
+                        </div>
                     </div>
-                  </div>
-                </div>
-                <div class="attendance-toggle mt-3" onclick="toggleAttendanceDetails()">
-                  <i class="fas fa-chevron-down me-2"></i>
-                  View Detailed Attendance
-                </div>
-                <div class="attendance-details mt-3" id="attendanceDetails">
-                  <div class="loading">
-                    <div class="spinner-border text-primary" role="status">
-                      <span class="visually-hidden">Loading...</span>
+                    <div class="col-4">
+                        <div class="border rounded p-2 bg-light">
+                        <strong>${attendance.absent_days}</strong><br>
+                        <small>Absent</small>
+                        </div>
                     </div>
-                    <p class="mt-2">Click above to load detailed attendance...</p>
-                  </div>
-                </div>
-              `;
+                    <div class="col-4">
+                        <div class="border rounded p-2 bg-light">
+                        <strong>${attendance.total_days}</strong><br>
+                        <small>Total</small>
+                        </div>
+                    </div>
+                    </div>
+                    <div class="attendance-toggle mt-3" onclick="toggleAttendanceDetails()">
+                    <i class="fas fa-chevron-down me-2"></i>
+                    View Detailed Attendance
+                    </div>
+                    <div class="attendance-details mt-3" id="attendanceDetails">
+                    <div class="loading">
+                        <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Click above to load detailed attendance...</p>
+                    </div>
+                    </div>
+                `;
             } else {
-              document.getElementById('attendanceContent').innerHTML = `
-                <div class="alert alert-warning">
-                  <i class="fas fa-exclamation-triangle me-2"></i>
-                  Attendance data not available
-                </div>
-              `;
+                document.getElementById('attendanceContent').innerHTML = `
+                    <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Attendance data not available
+                    </div>
+                `;
             }
-          } catch (error) {
+        } catch (error) {
             console.error('Error loading attendance:', error);
             document.getElementById('attendanceContent').innerHTML = `
-              <div class="alert alert-danger">
+                <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle me-2"></i>
                 Failed to load attendance data
-              </div>
+                </div>
             `;
-          }
         }
+    }
 
-        // Load detailed attendance with dates
-        async function loadDetailedAttendance() {
-          try {
+    // Load detailed attendance with dates
+    async function loadDetailedAttendance() {
+        try {
             const response = await fetch(`${API_BASE_URL}/student-attendance-details/${STUDENT_ID}`);
             
             if (!response.ok) {
-              throw new Error(`API error! status: ${response.status}`);
+                throw new Error(`API error! status: ${response.status}`);
             }
             
             const result = await response.json();
             
             if (result.success && result.attendance_details && result.attendance_details.length > 0) {
-              const attendanceDetails = result.attendance_details;
-              
-              let tableHTML = `
-                <div class="table-responsive">
-                  <table class="table table-bordered table-hover">
-                    <thead class="table-dark">
-                      <tr>
-                        <th>Date</th>
-                        <th>Day</th>
-                        <th>Class</th>
-                        <th>Status</th>
-                        <th>Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-              `;
-              
-              attendanceDetails.forEach(item => {
-                const date = new Date(item.date);
-                const formattedDate = date.toLocaleDateString('en-IN', {
-                  day: '2-digit',
-                  month: '2-digit', 
-                  year: 'numeric'
+                const attendanceDetails = result.attendance_details;
+                
+                let tableHTML = `
+                    <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Day</th>
+                            <th>Class</th>
+                            <th>Status</th>
+                            <th>Remarks</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                attendanceDetails.forEach(item => {
+                    const date = new Date(item.date);
+                    const formattedDate = date.toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit', 
+                    year: 'numeric'
+                    });
+                    
+                    const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
+                    
+                    tableHTML += `
+                    <tr>
+                        <td>${formattedDate}</td>
+                        <td>${dayName}</td>
+                        <td>${item.class || 'N/A'}</td>
+                        <td>
+                        <span class="badge bg-${item.status === 'Present' ? 'success' : 'danger'}">
+                            ${item.status}
+                        </span>
+                        </td>
+                        <td>${item.remarks || '-'}</td>
+                    </tr>
+                    `;
                 });
                 
-                const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
+                tableHTML += `</tbody></table></div>`;
                 
-                tableHTML += `
-                  <tr>
-                    <td>${formattedDate}</td>
-                    <td>${dayName}</td>
-                    <td>${item.class || 'N/A'}</td>
-                    <td>
-                      <span class="badge bg-${item.status === 'Present' ? 'success' : 'danger'}">
-                        ${item.status}
-                      </span>
-                    </td>
-                    <td>${item.remarks || '-'}</td>
-                  </tr>
-                `;
-              });
-              
-              tableHTML += `</tbody></table></div>`;
-              
-              document.getElementById('attendanceDetails').innerHTML = tableHTML;
+                document.getElementById('attendanceDetails').innerHTML = tableHTML;
             } else {
-              document.getElementById('attendanceDetails').innerHTML = `
-                <div class="alert alert-info">
-                  <i class="fas fa-info-circle me-2"></i>
-                  No attendance records found.
-                </div>
-              `;
+                document.getElementById('attendanceDetails').innerHTML = `
+                    <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No attendance records found.
+                    </div>
+                `;
             }
-          } catch (error) {
+        } catch (error) {
             console.error('Error loading detailed attendance:', error);
             document.getElementById('attendanceDetails').innerHTML = `
-              <div class="alert alert-danger">
+                <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle me-2"></i>
                 Failed to load attendance details
-              </div>
+                </div>
             `;
-          }
         }
+    }
 
     // Toggle attendance details visibility
     async function toggleAttendanceDetails() {
-      const toggle = document.querySelector('.attendance-toggle');
-      const details = document.getElementById('attendanceDetails');
-      
-      toggle.classList.toggle('active');
-      
-      if (toggle.classList.contains('active')) {
-        details.classList.add('show');
-        await loadDetailedAttendance();
-      } else {
-        details.classList.remove('show');
-      }
+        const toggle = document.querySelector('.attendance-toggle');
+        const details = document.getElementById('attendanceDetails');
+        
+        toggle.classList.toggle('active');
+        
+        if (toggle.classList.contains('active')) {
+            details.classList.add('show');
+            await loadDetailedAttendance();
+        } else {
+            details.classList.remove('show');
+        }
     }
 
     // Load Timetable Data
     async function loadTimetable() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-timetable/${STUDENT_ID}`);
-        const result = await response.json();
-        
-        if (result.success && result.timetable && result.timetable.length > 0) {
-          let tableHTML = `
-            <div class="table-responsive">
-              <table class="table table-bordered table-hover">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Day</th>
-                    <th>Subject</th>
-                    <th>Teacher</th>
-                    <th>Time</th>
-                    <th>Room</th>
-                  </tr>
-                </thead>
-                <tbody>
-          `;
-          
-          result.timetable.forEach(item => {
-            tableHTML += `
-              <tr>
-                <td>${item.day || 'N/A'}</td>
-                <td>${item.subject || 'N/A'}</td>
-                <td>${item.teacher_name || 'N/A'}</td>
-                <td>${item.start_time || 'N/A'} - ${item.end_time || 'N/A'}</td>
-                <td>${item.room_number || 'N/A'}</td>
-              </tr>
+        try {
+            const response = await fetch(`${API_BASE_URL}/student-timetable/${STUDENT_ID}`);
+            const result = await response.json();
+            
+            if (result.success && result.timetable && result.timetable.length > 0) {
+                let tableHTML = `
+                    <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>Day</th>
+                            <th>Subject</th>
+                            <th>Teacher</th>
+                            <th>Time</th>
+                            <th>Room</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                result.timetable.forEach(item => {
+                    tableHTML += `
+                    <tr>
+                        <td>${item.day || 'N/A'}</td>
+                        <td>${item.subject || 'N/A'}</td>
+                        <td>${item.teacher_name || 'N/A'}</td>
+                        <td>${item.start_time || 'N/A'} - ${item.end_time || 'N/A'}</td>
+                        <td>${item.room_number || 'N/A'}</td>
+                    </tr>
+                    `;
+                });
+                
+                tableHTML += `</tbody></table></div>`;
+                document.getElementById('timetableContent').innerHTML = tableHTML;
+            } else {
+                document.getElementById('timetableContent').innerHTML = `
+                    <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Timetable will be updated soon. Please check with your class coordinator.
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading timetable:', error);
+            document.getElementById('timetableContent').innerHTML = `
+                <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Timetable will be updated soon. Please check with your class coordinator.
+                </div>
             `;
-          });
-          
-          tableHTML += `</tbody></table></div>`;
-          document.getElementById('timetableContent').innerHTML = tableHTML;
-        } else {
-          document.getElementById('timetableContent').innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle me-2"></i>
-              Timetable will be updated soon. Please check with your class coordinator.
-            </div>
-          `;
         }
-      } catch (error) {
-        console.error('Error loading timetable:', error);
-        document.getElementById('timetableContent').innerHTML = `
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            Timetable will be updated soon. Please check with your class coordinator.
-          </div>
-        `;
-      }
     }
 
     // Load Results Data
     async function loadResults() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-results/${STUDENT_ID}`);
-        const result = await response.json();
-        
-        if (result.success && result.results && result.results.length > 0) {
-          let tableHTML = `
-            <div class="table-responsive">
-              <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Subject</th>
-                    <th>Exam Type</th>
-                    <th>Marks Obtained</th>
-                    <th>Total Marks</th>
-                    <th>Percentage</th>
-                    <th>Grade</th>
-                    <th>Exam Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-          `;
-          
-          result.results.forEach(item => {
-            const percentage = ((item.marks_obtained / item.total_marks) * 100).toFixed(1);
+        try {
+            const response = await fetch(`${API_BASE_URL}/student-results/${STUDENT_ID}`);
+            const result = await response.json();
             
-            tableHTML += `
-              <tr>
-                <td>${item.subject}</td>
-                <td>${item.exam_type}</td>
-                <td>${item.marks_obtained}</td>
-                <td>${item.total_marks}</td>
-                <td>${percentage}%</td>
-                <td><span class="badge bg-${getGradeColor(item.grade)}">${item.grade}</span></td>
-                <td>${item.exam_date}</td>
-              </tr>
+            if (result.success && result.results && result.results.length > 0) {
+                let tableHTML = `
+                    <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                        <tr>
+                            <th>Subject</th>
+                            <th>Exam Type</th>
+                            <th>Marks Obtained</th>
+                            <th>Total Marks</th>
+                            <th>Percentage</th>
+                            <th>Grade</th>
+                            <th>Exam Date</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                result.results.forEach(item => {
+                    const percentage = ((item.marks_obtained / item.total_marks) * 100).toFixed(1);
+                    
+                    tableHTML += `
+                    <tr>
+                        <td>${item.subject}</td>
+                        <td>${item.exam_type}</td>
+                        <td>${item.marks_obtained}</td>
+                        <td>${item.total_marks}</td>
+                        <td>${percentage}%</td>
+                        <td><span class="badge bg-${getGradeColor(item.grade)}">${item.grade}</span></td>
+                        <td>${item.exam_date}</td>
+                    </tr>
+                    `;
+                });
+                
+                tableHTML += `</tbody></table></div>`;
+                document.getElementById('resultsContent').innerHTML = tableHTML;
+            } else {
+                document.getElementById('resultsContent').innerHTML = `
+                    <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No results available yet. Results will be published after exams.
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading results:', error);
+            document.getElementById('resultsContent').innerHTML = `
+                <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load results
+                </div>
             `;
-          });
-          
-          tableHTML += `</tbody></table></div>`;
-          document.getElementById('resultsContent').innerHTML = tableHTML;
-        } else {
-          document.getElementById('resultsContent').innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle me-2"></i>
-              No results available yet. Results will be published after exams.
-            </div>
-          `;
         }
-      } catch (error) {
-        console.error('Error loading results:', error);
-        document.getElementById('resultsContent').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load results
-          </div>
-        `;
-      }
     }
 
     // Load Fees Data
     async function loadFees() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-fees/${STUDENT_ID}`);
-        const result = await response.json();
-        
-        if (result.success && result.fee_details) {
-          const fees = result.fee_details;
-          const paidAmount = parseFloat(fees.paid_amount) || 0;
-          const totalAmount = parseFloat(fees.fee_amount) || 0;
-          const dueAmount = parseFloat(fees.due_amount) || 0;
-          const paymentStatus = fees.fee_status || 'Pending';
-          
-          const paymentProgress = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
-          
-          document.getElementById('feesContent').innerHTML = `
-            <div class="row mb-4">
-              <div class="col-md-3">
-                <div class="border rounded p-3 bg-light mb-3 text-center">
-                  <h6 class="text-muted">Total Fees</h6>
-                  <h4 class="text-primary">₹${totalAmount.toLocaleString('en-IN')}</h4>
+        try {
+            const response = await fetch(`${API_BASE_URL}/student-fees/${STUDENT_ID}`);
+            const result = await response.json();
+            
+            if (result.success && result.fee_details) {
+                const fees = result.fee_details;
+                const paidAmount = parseFloat(fees.paid_amount) || 0;
+                const totalAmount = parseFloat(fees.fee_amount) || 0;
+                const dueAmount = parseFloat(fees.due_amount) || 0;
+                const paymentStatus = fees.fee_status || 'Pending';
+                
+                const paymentProgress = totalAmount > 0 ? (paidAmount / totalAmount) * 100 : 0;
+                
+                document.getElementById('feesContent').innerHTML = `
+                    <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light mb-3 text-center">
+                        <h6 class="text-muted">Total Fees</h6>
+                        <h4 class="text-primary">₹${totalAmount.toLocaleString('en-IN')}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light mb-3 text-center">
+                        <h6 class="text-muted">Paid Amount</h6>
+                        <h4 class="text-success">₹${paidAmount.toLocaleString('en-IN')}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light mb-3 text-center">
+                        <h6 class="text-muted">Due Amount</h6>
+                        <h4 class="text-danger">₹${dueAmount.toLocaleString('en-IN')}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light mb-3 text-center">
+                        <h6 class="text-muted">Status</h6>
+                        <h4><span class="badge bg-${getFeeStatusColor(paymentStatus)}">${paymentStatus}</span></h4>
+                        </div>
+                    </div>
+                    </div>
+                    <div class="mb-4">
+                    <p><strong>Payment Progress:</strong></p>
+                    <div class="progress">
+                        <div class="progress-bar bg-success" style="width: ${paymentProgress}%">
+                        ${paymentProgress.toFixed(1)}%
+                        </div>
+                    </div>
+                    </div>
+                    ${dueAmount > 0 ? `
+                    <button class="btn btn-success" onclick="payFees()">
+                        <i class="fas fa-credit-card me-2"></i>Pay Online
+                    </button>
+                    ` : `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        All fees have been paid. Thank you!
+                    </div>
+                    `}
+                `;
+            } else {
+                document.getElementById('feesContent').innerHTML = `
+                    <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Fee details not available
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading fees:', error);
+            document.getElementById('feesContent').innerHTML = `
+                <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load fee details
                 </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded p-3 bg-light mb-3 text-center">
-                  <h6 class="text-muted">Paid Amount</h6>
-                  <h4 class="text-success">₹${paidAmount.toLocaleString('en-IN')}</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded p-3 bg-light mb-3 text-center">
-                  <h6 class="text-muted">Due Amount</h6>
-                  <h4 class="text-danger">₹${dueAmount.toLocaleString('en-IN')}</h4>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded p-3 bg-light mb-3 text-center">
-                  <h6 class="text-muted">Status</h6>
-                  <h4><span class="badge bg-${getFeeStatusColor(paymentStatus)}">${paymentStatus}</span></h4>
-                </div>
-              </div>
-            </div>
-            <div class="mb-4">
-              <p><strong>Payment Progress:</strong></p>
-              <div class="progress">
-                <div class="progress-bar bg-success" style="width: ${paymentProgress}%">
-                  ${paymentProgress.toFixed(1)}%
-                </div>
-              </div>
-            </div>
-            ${dueAmount > 0 ? `
-              <button class="btn btn-success" onclick="payFees()">
-                <i class="fas fa-credit-card me-2"></i>Pay Online
-              </button>
-            ` : `
-              <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                All fees have been paid. Thank you!
-              </div>
-            `}
-          `;
-        } else {
-          document.getElementById('feesContent').innerHTML = `
-            <div class="alert alert-warning">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              Fee details not available
-            </div>
-          `;
+            `;
         }
-      } catch (error) {
-        console.error('Error loading fees:', error);
-        document.getElementById('feesContent').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load fee details
-          </div>
-        `;
-      }
     }
 
     // Load Notices Data
     async function loadNotices() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/student-notices`);
-        const result = await response.json();
-        
-        if (result.success && result.notices && result.notices.length > 0) {
-          let noticesHTML = '<div class="list-group">';
-          
-          result.notices.forEach(notice => {
-            const noticeDate = new Date(notice.created_at).toLocaleDateString();
-            const priorityClass = notice.priority === 'high' ? 'list-group-item-danger' : 
-                                notice.priority === 'medium' ? 'list-group-item-warning' : '';
+        try {
+            const response = await fetch(`${API_BASE_URL}/student-notices`);
+            const result = await response.json();
             
-            noticesHTML += `
-              <div class="list-group-item ${priorityClass}">
-                <div class="d-flex w-100 justify-content-between">
-                  <h6 class="mb-1">${notice.title}</h6>
-                  <small class="text-muted">${noticeDate}</small>
+            if (result.success && result.notices && result.notices.length > 0) {
+                let noticesHTML = '<div class="list-group">';
+                
+                result.notices.forEach(notice => {
+                    const noticeDate = new Date(notice.created_at).toLocaleDateString();
+                    const priorityClass = notice.priority === 'high' ? 'list-group-item-danger' : 
+                                        notice.priority === 'medium' ? 'list-group-item-warning' : '';
+                    
+                    noticesHTML += `
+                    <div class="list-group-item ${priorityClass}">
+                        <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${notice.title}</h6>
+                        <small class="text-muted">${noticeDate}</small>
+                        </div>
+                        <p class="mb-1">${notice.message}</p>
+                        ${notice.priority === 'high' ? '<small class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Important Notice</small>' : ''}
+                    </div>
+                    `;
+                });
+                
+                noticesHTML += '</div>';
+                document.getElementById('noticesContent').innerHTML = noticesHTML;
+            } else {
+                document.getElementById('noticesContent').innerHTML = `
+                    <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No notices at the moment
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading notices:', error);
+            document.getElementById('noticesContent').innerHTML = `
+                <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load notices
                 </div>
-                <p class="mb-1">${notice.message}</p>
-                ${notice.priority === 'high' ? '<small class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Important Notice</small>' : ''}
-              </div>
             `;
-          });
-          
-          noticesHTML += '</div>';
-          document.getElementById('noticesContent').innerHTML = noticesHTML;
-        } else {
-          document.getElementById('noticesContent').innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle me-2"></i>
-              No notices at the moment
-            </div>
-          `;
         }
-      } catch (error) {
-        console.error('Error loading notices:', error);
-        document.getElementById('noticesContent').innerHTML = `
-          <div class="alert alert-danger">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load notices
-          </div>
-        `;
-      }
     }
 
     // Helper functions
     function getGradeColor(grade) {
-      switch(grade) {
-        case 'A+': case 'A': return 'success';
-        case 'B': case 'B+': return 'info';
-        case 'C': case 'C+': return 'warning';
-        default: return 'danger';
-      }
+        switch(grade) {
+            case 'A+': case 'A': return 'success';
+            case 'B': case 'B+': return 'info';
+            case 'C': case 'C+': return 'warning';
+            default: return 'danger';
+        }
     }
 
     function getFeeStatusColor(status) {
-      switch(status) {
-        case 'Paid': return 'success';
-        case 'Partial': return 'warning';
-        case 'Pending': return 'danger';
-        default: return 'secondary';
-      }
+        switch(status) {
+            case 'Paid': return 'success';
+            case 'Partial': return 'warning';
+            case 'Pending': return 'danger';
+            default: return 'secondary';
+        }
     }
 
     // Pay fees function
     function payFees() {
-      alert('Payment gateway integration would be implemented here. Please contact administration for fee payment.');
+        alert('Payment gateway integration would be implemented here. Please contact administration for fee payment.');
     }
 
     // Show error message
     function showError(message) {
-      // You can implement a toast notification system here
-      console.error('Dashboard Error:', message);
-      alert(message);
+        console.error('Dashboard Error:', message);
+        alert(message);
     }
 
     // Logout function
@@ -914,15 +1037,18 @@
       const confirmLogout = confirm("Are you sure you want to log out?");
       
       if (confirmLogout) {
-        // Clear stored data
-        localStorage.removeItem('studentToken');
-        localStorage.removeItem('studentData');
+        // Clear all session data
+        sessionStorage.removeItem('studentToken');
+        sessionStorage.removeItem('studentData');
+        sessionStorage.removeItem('loginTime');
+        
+        // Clear session timer
+        clearTimeout(sessionTimer);
         
         alert("You have been logged out!");
         window.location.href = "index.html";
       }
     }
-
-  </script>
+</script>
 </body>
 </html>
