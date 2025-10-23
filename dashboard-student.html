@@ -204,6 +204,48 @@
       font-size: 0.9rem;
       opacity: 0.9;
     }
+
+    <!-- Toggle bar for attandace -->
+    .attendance-details {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease;
+    }
+    
+    .attendance-details.show {
+      max-height: 1000px;
+    }
+    
+    .attendance-toggle {
+      cursor: pointer;
+      color: #0077b6;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      margin-top: 15px;
+      padding: 8px 15px;
+      border: 1px solid #0077b6;
+      border-radius: 5px;
+      transition: all 0.3s ease;
+    }
+    
+    .attendance-toggle:hover {
+      background-color: #0077b6;
+      color: white;
+    }
+    
+    .attendance-toggle.active {
+      background-color: #0077b6;
+      color: white;
+    }
+    
+    .attendance-toggle i {
+      transition: transform 0.3s ease;
+    }
+    
+    .attendance-toggle.active i {
+      transform: rotate(180deg);
+    }
   </style>
 </head>
 <body>
@@ -426,20 +468,17 @@
         if (result.success && result.attendance) {
           const attendance = result.attendance;
           
-          // Calculate attendance from real data
-          const realAttendance = await calculateRealAttendance();
-          
           document.getElementById('attendanceContent').innerHTML = `
             <div class="row mb-4">
               <div class="col-md-6">
                 <div class="stats-card">
-                  <div class="number">${realAttendance.percentage}%</div>
+                  <div class="number">${attendance.percentage}%</div>
                   <div class="label">Overall Attendance</div>
                 </div>
               </div>
               <div class="col-md-6">
                 <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                  <div class="number">${realAttendance.present}</div>
+                  <div class="number">${attendance.present_days}</div>
                   <div class="label">Present Days</div>
                 </div>
               </div>
@@ -447,30 +486,42 @@
             <div class="mb-3">
               <p><strong>Attendance Progress:</strong></p>
               <div class="progress">
-                <div class="progress-bar ${realAttendance.percentage >= 75 ? 'bg-success' : realAttendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                     style="width: ${realAttendance.percentage}%">
-                  ${realAttendance.percentage}%
+                <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                     style="width: ${attendance.percentage}%">
+                  ${attendance.percentage}%
                 </div>
               </div>
             </div>
             <div class="row text-center">
               <div class="col-4">
                 <div class="border rounded p-2 bg-light">
-                  <strong>${realAttendance.present}</strong><br>
+                  <strong>${attendance.present_days}</strong><br>
                   <small>Present</small>
                 </div>
               </div>
               <div class="col-4">
                 <div class="border rounded p-2 bg-light">
-                  <strong>${realAttendance.absent}</strong><br>
+                  <strong>${attendance.absent_days}</strong><br>
                   <small>Absent</small>
                 </div>
               </div>
               <div class="col-4">
                 <div class="border rounded p-2 bg-light">
-                  <strong>${realAttendance.total}</strong><br>
+                  <strong>${attendance.total_days}</strong><br>
                   <small>Total</small>
                 </div>
+              </div>
+            </div>
+            <div class="attendance-toggle mt-3" onclick="toggleAttendanceDetails()">
+              <i class="fas fa-chevron-down me-2"></i>
+              View Detailed Attendance
+            </div>
+            <div class="attendance-details mt-3" id="attendanceDetails">
+              <div class="loading">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Click above to load detailed attendance...</p>
               </div>
             </div>
           `;
@@ -492,98 +543,95 @@
         `;
       }
     }
-
-    // Load Attendance Data
-    async function loadAttendance() {
+    
+    // Load detailed attendance with dates
+    async function loadDetailedAttendance() {
       try {
-        console.log('Fetching attendance data for:', STUDENT_ID);
-        const response = await fetch(`${API_BASE_URL}/student-attendance/${STUDENT_ID}`);
+        const response = await fetch(`${API_BASE_URL}/student-attendance-details/${STUDENT_ID}`);
+        
+        if (!response.ok) {
+          throw new Error(`API error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
-        console.log('Attendance API Response:', result);
-        
-        if (result.success && result.attendance) {
-          const attendance = result.attendance;
+        if (result.success && result.attendance_details && result.attendance_details.length > 0) {
+          const attendanceDetails = result.attendance_details;
           
-          let attendanceHTML = `
-            <div class="row mb-4">
-              <div class="col-md-6">
-                <div class="stats-card">
-                  <div class="number">${attendance.percentage}%</div>
-                  <div class="label">Overall Attendance</div>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                  <div class="number">${attendance.present_days}</div>
-                  <div class="label">Present Days</div>
-                </div>
-              </div>
-            </div>
-            <div class="mb-3">
-              <p><strong>Attendance Progress:</strong></p>
-              <div class="progress">
-                <div class="progress-bar ${attendance.percentage >= 75 ? 'bg-success' : attendance.percentage >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                    style="width: ${attendance.percentage}%">
-                  ${attendance.percentage}%
-                </div>
-              </div>
-            </div>
-            <div class="row text-center">
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.present_days}</strong><br>
-                  <small>Present</small>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.absent_days}</strong><br>
-                  <small>Absent</small>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="border rounded p-2 bg-light">
-                  <strong>${attendance.total_days}</strong><br>
-                  <small>Total Days</small>
-                </div>
-              </div>
-            </div>
+          let tableHTML = `
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Class</th>
+                    <th>Status</th>
+                    <th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
           `;
           
-          if (attendance.total_days === 0) {
-            attendanceHTML += `
-              <div class="alert alert-info mt-3">
-                <i class="fas fa-info-circle me-2"></i>
-                No attendance records found for your course (${studentData.course}). 
-                <br><small>This could be due to case sensitivity in course names.</small>
-              </div>
+          attendanceDetails.forEach(item => {
+            const date = new Date(item.date);
+            const formattedDate = date.toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: '2-digit', 
+              year: 'numeric'
+            });
+            
+            const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
+            
+            tableHTML += `
+              <tr>
+                <td>${formattedDate}</td>
+                <td>${dayName}</td>
+                <td>${item.class || 'N/A'}</td>
+                <td>
+                  <span class="badge bg-${item.status === 'Present' ? 'success' : 'danger'}">
+                    ${item.status}
+                  </span>
+                </td>
+                <td>${item.remarks || '-'}</td>
+              </tr>
             `;
-          }
+          });
           
-          document.getElementById('attendanceContent').innerHTML = attendanceHTML;
+          tableHTML += `</tbody></table></div>`;
           
+          document.getElementById('attendanceDetails').innerHTML = tableHTML;
         } else {
-          document.getElementById('attendanceContent').innerHTML = `
-            <div class="alert alert-warning">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              ${result.message || 'Attendance data not available'}
-              <br><small>Check browser console for details</small>
+          document.getElementById('attendanceDetails').innerHTML = `
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              No attendance records found.
             </div>
           `;
         }
       } catch (error) {
-        console.error('Error loading attendance:', error);
-        document.getElementById('attendanceContent').innerHTML = `
+        console.error('Error loading detailed attendance:', error);
+        document.getElementById('attendanceDetails').innerHTML = `
           <div class="alert alert-danger">
             <i class="fas fa-exclamation-circle me-2"></i>
-            Failed to load attendance data
-            <br><small>${error.message}</small>
-            <br><button class="btn btn-sm btn-outline-danger mt-2" onclick="loadAttendance()">
-              <i class="fas fa-redo me-1"></i>Retry
-            </button>
+            Failed to load attendance details
           </div>
         `;
+      }
+    }
+    
+    // Toggle attendance details visibility
+    async function toggleAttendanceDetails() {
+      const toggle = document.querySelector('.attendance-toggle');
+      const details = document.getElementById('attendanceDetails');
+      
+      toggle.classList.toggle('active');
+      
+      if (toggle.classList.contains('active')) {
+        details.classList.add('show');
+        await loadDetailedAttendance();
+      } else {
+        details.classList.remove('show');
       }
     }
 
@@ -879,3 +927,4 @@
 </body>
 
 </html>
+
