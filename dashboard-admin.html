@@ -1473,24 +1473,44 @@
                             <label class="form-label">Select Exam *</label>
                             <select class="form-select" name="exam" required>
                                 <option value="">Select Exam</option>
-                                <option value="Class Test 1">Class Test 1</option>
-                                <option value="Class Test 2">Class Test 2</option>
-                                <option value="Class Test 3">Class Test 3</option>
-                                <option value="Class Test 4">Class Test 4</option>
-                                <option value="Class Test 5">Class Test 5</option>
-                                <option value="Mid-Term Exam">Mid-Term Exam</option>
-                                <option value="Final Exam">Final Exam</option>
-                                <option value="Unit Test 1">Unit Test 1</option>
-                                <option value="Unit Test 2">Unit Test 2</option>
-                                <option value="quiz">Quiz</option>
+                                <option value="Class Test-1">Class Test-1</option>
+                                <option value="Class Test-2">Class Test-2</option>
+                                <option value="Class Test-3">Class Test-3</option>
+                                <option value="Class Test-4">Class Test-4</option>
+                                <option value="Class Test-5">Class Test-5</option>
+                                <option value="Final Exam">Final Exam</option>                    
+                                <option value="Quiz-1">Quiz-1</option>
+                                <option value="Quiz-2">Quiz-2</option>
                             </select>
                         </div>
+                        
+                        <!-- Course Selection -->
+                        <div class="mb-3">
+                            <label class="form-label">Select Course *</label>
+                            <select class="form-select" name="course" required onchange="loadStudentsForMarks(this.value)">
+                                <option value="">Select Course</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Student Search -->
+                        <div class="mb-3">
+                            <label class="form-label">Search Student by UID</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="studentSearchMarks" placeholder="Enter Student UID" onkeyup="searchStudentForMarks(this.value)">
+                                <button class="btn btn-outline-secondary" type="button" onclick="clearStudentSearch()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Student Selection -->
                         <div class="mb-3">
                             <label class="form-label">Select Student *</label>
-                            <select class="form-select" name="studentId" required>
+                            <select class="form-select" name="studentId" required id="marksStudentSelect">
                                 <option value="">Select Student</option>
                             </select>
                         </div>
+                        
                         <div class="mb-3">
                             <label class="form-label">Subject *</label>
                             <input type="text" class="form-control" name="subject" required placeholder="Enter subject name">
@@ -1745,4 +1765,5 @@
 </body>
 
 </html>
+
 
