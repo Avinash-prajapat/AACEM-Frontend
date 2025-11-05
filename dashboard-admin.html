@@ -793,6 +793,30 @@
                 border: 1px solid #ddd;
             }
         }
+        /* Contact Messages Styling */
+        .contact-messages-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .contact-messages-container table {
+            margin-bottom: 0;
+        }
+        
+        .contact-messages-container .table td {
+            vertical-align: middle;
+        }
+        
+        /* Status badges */
+        .badge.bg-danger { background-color: #dc3545 !important; }
+        .badge.bg-warning { background-color: #ffc107 !important; color: #000; }
+        .badge.bg-info { background-color: #0dcaf0 !important; }
+        .badge.bg-success { background-color: #198754 !important; }
+        
+        /* New message highlight */
+        .table-warning {
+            background-color: rgba(255, 193, 7, 0.1) !important;
+        }
     </style>
 </head>
 <body>
@@ -897,11 +921,7 @@
                             <i class="fas fa-file-pdf"></i> Generate Reports
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
-                            <i class="fas fa-cogs"></i> System Settings
-                        </a>
-                    </li>
+                    
                 </ul>
                 
                 <!-- Sidebar Footer -->
@@ -985,6 +1005,13 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="marks-tab" data-bs-toggle="tab" data-bs-target="#marks" type="button" role="tab">
                                 <i class="fas fa-chart-bar me-2"></i>Exam Results
+                            </button>
+                        </li>
+                        <!-- Contact Messages Tab - Add this in your nav tabs -->
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button" role="tab">
+                                <i class="fas fa-envelope me-2"></i> Contact Messages
+                                <span id="contactMessageCount" class="badge bg-danger ms-2">0</span>
                             </button>
                         </li>
                     </ul>
@@ -1187,7 +1214,57 @@
                                 </div>
                             </div>
                         </div>
-
+                        <!-- Contact Messages Content - Add this in your tab content -->
+                        <div class="tab-pane fade" id="contact" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h4><i class="fas fa-envelope me-2"></i> Contact Messages</h4>
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="loadContactMessages()">
+                                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deleteAllReadMessages()">
+                                        <i class="fas fa-trash me-1"></i> Clear Read
+                                    </button>
+                                </div>
+                            </div>
+                        
+                            <!-- Filter Buttons -->
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary active" onclick="filterMessages('all')">
+                                            All Messages
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="filterMessages('new')">
+                                            New <span id="newCount" class="badge bg-danger ms-1">0</span>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning" onclick="filterMessages('read')">
+                                            Read
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info" onclick="filterMessages('replied')">
+                                            Replied
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success" onclick="filterMessages('resolved')">
+                                            Resolved
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Messages Container -->
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="contactMessagesContainer" class="contact-messages-container">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary mb-3" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p>Loading contact messages...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Marks Tab -->
                         <div class="tab-pane fade" id="marks" role="tabpanel">
                             <div class="card">
@@ -1578,7 +1655,31 @@
             </div>
         </div>
     </div>
-
+    <!-- View Contact Message Modal - Add this at the end of your modals -->
+    <div class="modal fade" id="viewContactModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-envelope me-2"></i> Contact Message Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="contactMessageDetails">
+                        <!-- Message details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="markAsReplied()">
+                        <i class="fas fa-reply me-1"></i> Mark as Replied
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="deleteCurrentMessage()">
+                        <i class="fas fa-trash me-1"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Notification Modal -->
     <div class="modal fade" id="notificationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -1676,47 +1777,7 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-cogs me-2"></i>Institute Settings</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="settingsForm">
-                        <div class="mb-3">
-                            <label class="form-label">Institute Name</label>
-                            <input type="text" class="form-control" name="instituteName" placeholder="Enter institute name">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Address</label>
-                            <textarea class="form-control" name="address" rows="3" placeholder="Enter institute address"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Contact Number</label>
-                            <input type="text" class="form-control" name="contactNumber" placeholder="Enter contact number">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <input type="email" class="form-control" name="email" placeholder="Enter email address">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Website</label>
-                            <input type="url" class="form-control" name="website" placeholder="Enter website URL">
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveSettings()">
-                        <i class="fas fa-save me-1"></i> Save Settings
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+   
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1765,5 +1826,6 @@
 </body>
 
 </html>
+
 
 
