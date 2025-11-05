@@ -1,4 +1,154 @@
-
+// 🔒 AUTHENTICATION SYSTEM - Add this at the VERY TOP of your file
+(function() {
+    'use strict';
+    
+    // Check authentication status
+    function checkAuth() {
+        const isAuthenticated = sessionStorage.getItem('isAuthenticated');
+        const loginTime = sessionStorage.getItem('adminLoginTime');
+        const adminUsername = sessionStorage.getItem('adminUsername');
+        
+        console.log('Auth Check:', { isAuthenticated, loginTime, adminUsername });
+        
+        // If not authenticated or missing data, redirect to login
+        if (!isAuthenticated || !loginTime || !adminUsername) {
+            console.log('Not authenticated, redirecting to login');
+            redirectToLogin();
+            return false;
+        }
+        
+        // Check session timeout (8 hours)
+        const currentTime = new Date().getTime();
+        const loginDuration = currentTime - parseInt(loginTime);
+        const eightHours = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+        
+        if (loginDuration > eightHours) {
+            console.log('Session expired, clearing storage');
+            sessionStorage.clear();
+            showSessionExpired();
+            return false;
+        }
+        
+        console.log('Authentication successful');
+        return true;
+    }
+    
+    function redirectToLogin() {
+        // Store current page to return after login
+        sessionStorage.setItem('redirectUrl', window.location.href);
+        window.location.href = 'admin-login.html';
+    }
+    
+    function showSessionExpired() {
+        const modalHtml = `
+            <div class="modal fade" id="sessionExpiredModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning">
+                            <h5 class="modal-title">Session Expired</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center">
+                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                <p>Your session has expired due to inactivity.</p>
+                                <p>Please login again to continue.</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" onclick="redirectToLoginPage()">Login Again</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body if not exists
+        if (!document.getElementById('sessionExpiredModal')) {
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('sessionExpiredModal'));
+        modal.show();
+    }
+    
+    // Global function for redirect
+    window.redirectToLoginPage = function() {
+        sessionStorage.clear();
+        window.location.href = 'admin-login.html';
+    };
+    
+    // Enhanced logout function - REPLACE your existing logout function
+    window.logout = function() {
+        if (confirm("Are you sure you want to log out?")) {
+            sessionStorage.clear();
+            window.location.href = "admin-login.html";
+        }
+    };
+    
+    // Auto logout after inactivity (30 minutes)
+    let inactivityTime = function() {
+        let time;
+        window.onload = resetTimer;
+        document.onmousemove = resetTimer;
+        document.onkeypress = resetTimer;
+        document.onclick = resetTimer;
+        document.onmousedown = resetTimer;
+        document.ontouchstart = resetTimer;
+        
+        function logout() {
+            if (sessionStorage.getItem('isAuthenticated') === 'true') {
+                showSessionExpired();
+            }
+        }
+        
+        function resetTimer() {
+            clearTimeout(time);
+            time = setTimeout(logout, 30 * 60 * 1000); // 30 minutes
+        }
+    };
+    
+    // Initialize auth check when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, checking authentication...');
+        
+        if (!checkAuth()) {
+            return;
+        }
+        
+        // Initialize inactivity timer
+        inactivityTime();
+        
+        // Update UI with admin info
+        const adminUsername = sessionStorage.getItem('adminUsername');
+        const adminInfoElement = document.getElementById('adminInfo');
+        if (adminInfoElement) {
+            adminInfoElement.textContent = `Welcome, ${adminUsername}`;
+        }
+        
+        // Update logout button in sidebar if exists
+        const logoutBtn = document.querySelector('[onclick="logout()"]');
+        if (logoutBtn) {
+            logoutBtn.onclick = window.logout;
+        }
+        
+        // Continue with your existing dashboard initialization
+        console.log('Dashboard initializing...');
+        
+        // Your existing initialization code will run here automatically
+        // since it's already in DOMContentLoaded
+    });
+    
+    // Protect against browser back button after logout
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+            // Page was loaded from cache (back/forward button)
+            if (!sessionStorage.getItem('isAuthenticated')) {
+                redirectToLogin();
+            }
+        }
+    });
+    
+})();
 
 
 // Global variables
@@ -2042,11 +2192,11 @@ async function exportData(type) {
     }
 }
 
-// Logout function
+// Logout function - UPDATED for authentication
 function logout() {
     if (confirm("Are you sure you want to log out?")) {
-        alert("You have been logged out!");
-        window.location.href = "index.html";
+        sessionStorage.clear();
+        window.location.href = "admin-login.html";
     }
 }
 
@@ -3472,5 +3622,6 @@ function showInfo(message) {
 }
 
 console.log('Dashboard JavaScript loaded successfully');
+
 
 
