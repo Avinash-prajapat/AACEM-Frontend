@@ -314,6 +314,204 @@ function updateNotificationBadge() {
     }
 }
 
+// Load students for marks based on course selection - FINAL WORKING VERSION
+async function loadStudentsForMarks(courseCode) {
+    const studentSelect = document.getElementById('marksStudentSelect');
+    const searchInput = document.getElementById('studentSearchMarks');
+    
+    if (!studentSelect) {
+        console.error('Marks student select not found');
+        return;
+    }
+    
+    if (!courseCode) {
+        studentSelect.innerHTML = '<option value="">Select Course First</option>';
+        return;
+    }
+    
+    studentSelect.innerHTML = '<option value="">Loading students...</option>';
+    
+    try {
+        console.log(`Loading students for course: ${courseCode}`);
+        
+        // Use the new API endpoint
+        const response = await fetch(`https://aacem-backend.onrender.com/api/students/course/${courseCode}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        studentSelect.innerHTML = '<option value="">Select Student</option>';
+        
+        if (result.success && result.students && result.students.length > 0) {
+            console.log(`API Success: Loaded ${result.students.length} students for course: ${courseCode}`);
+            
+            result.students.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.student_id;
+                option.textContent = `${student.name} (${student.student_id})`;
+                option.setAttribute('data-student-name', student.name);
+                studentSelect.appendChild(option);
+            });
+            
+            // Clear search when course changes
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            
+        } else {
+            console.log(`No students found for course: ${courseCode}`);
+            studentSelect.innerHTML = '<option value="">No students found for this course</option>';
+        }
+        
+    } catch (error) {
+        console.error('Error loading students for marks:', error);
+        
+        // Fallback: Use local data if API fails
+        console.log('Trying fallback with local data...');
+        const courseStudents = studentsData.filter(student => student.course === courseCode);
+        
+        studentSelect.innerHTML = '<option value="">Select Student</option>';
+        
+        if (courseStudents.length > 0) {
+            console.log(`Fallback: Loaded ${courseStudents.length} students from local data`);
+            
+            courseStudents.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.student_id;
+                option.textContent = `${student.name} (${student.student_id})`;
+                option.setAttribute('data-student-name', student.name);
+                studentSelect.appendChild(option);
+            });
+        } else {
+            studentSelect.innerHTML = '<option value="">No students found for this course</option>';
+        }
+    }
+}
+
+// Search student by UID for marks - OPTIMIZED VERSION
+function searchStudentForMarks(searchTerm) {
+    const studentSelect = document.getElementById('marksStudentSelect');
+    const courseSelect = document.querySelector('#marksForm select[name="course"]');
+    
+    if (!studentSelect || !courseSelect) return;
+    
+    const currentCourse = courseSelect.value;
+    
+    if (!searchTerm.trim()) {
+        // If search is cleared, reload students for current course
+        if (currentCourse) {
+            loadStudentsForMarks(currentCourse);
+        } else {
+            studentSelect.innerHTML = '<option value="">Select Course First</option>';
+        }
+        return;
+    }
+    
+    // Filter students based on search term
+    let filteredStudents = [];
+    
+    if (currentCourse) {
+        // Search within current course students
+        filteredStudents = studentsData.filter(student => 
+            student.course === currentCourse && 
+            (student.student_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             student.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    } else {
+        // Search in all students if no course selected
+        filteredStudents = studentsData.filter(student => 
+            student.student_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            student.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }
+    
+    updateMarksStudentDropdown(filteredStudents, searchTerm);
+}
+
+// Update marks student dropdown
+function updateMarksStudentDropdown(students, searchTerm = '') {
+    const studentSelect = document.getElementById('marksStudentSelect');
+    
+    if (!studentSelect) return;
+    
+    studentSelect.innerHTML = '<option value="">Select Student</option>';
+    
+    if (students.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = searchTerm ? 'No students found matching your search' : 'No students available';
+        option.disabled = true;
+        studentSelect.appendChild(option);
+        return;
+    }
+    
+    students.forEach(student => {
+        const option = document.createElement('option');
+        option.value = student.student_id;
+        option.textContent = `${student.name} (${student.student_id})`;
+        option.setAttribute('data-student-name', student.name);
+        studentSelect.appendChild(option);
+    });
+}
+
+// Clear student search
+function clearStudentSearch() {
+    const searchInput = document.getElementById('studentSearchMarks');
+    const courseSelect = document.querySelector('#marksForm select[name="course"]');
+    
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    if (courseSelect && courseSelect.value) {
+        loadStudentsForMarks(courseSelect.value);
+    } else {
+        const studentSelect = document.getElementById('marksStudentSelect');
+        if (studentSelect) {
+            studentSelect.innerHTML = '<option value="">Select Course First</option>';
+        }
+    }
+}
+
+// Ensure course dropdown is populated when marks modal opens
+document.getElementById('marksModal').addEventListener('show.bs.modal', function() {
+    console.log('Marks modal opened - initializing...');
+    
+    // Populate course dropdown
+    populateCourseDropdown('marksForm', 'course');
+    
+    // Set current date
+    const dateInput = this.querySelector('input[type="date"]');
+    if (dateInput) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+    
+    // Clear previous selections
+    const studentSelect = document.getElementById('marksStudentSelect');
+    const searchInput = document.getElementById('studentSearchMarks');
+    
+    if (studentSelect) {
+        studentSelect.innerHTML = '<option value="">Select Course First</option>';
+    }
+    
+    if (searchInput) {
+        searchInput.value = '';
+    }
+});
+
+// Add event listener for course change
+document.addEventListener('DOMContentLoaded', function() {
+    const courseSelect = document.querySelector('#marksForm select[name="course"]');
+    if (courseSelect) {
+        courseSelect.addEventListener('change', function() {
+            console.log('Course changed to:', this.value);
+            loadStudentsForMarks(this.value);
+        });
+    }
+});
 // Update notifications in the panel
 function updateNotifications() {
     const notificationList = document.getElementById('notificationList');
@@ -3274,4 +3472,5 @@ function showInfo(message) {
 }
 
 console.log('Dashboard JavaScript loaded successfully');
+
 
