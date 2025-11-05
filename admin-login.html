@@ -102,6 +102,10 @@
     .social-icons a:hover {
       color: #ffc107;
     }
+
+    .alert {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -118,6 +122,12 @@
     <div class="admin-header text-center">
       <i class="fas fa-user-shield fa-3x mb-2"></i>
       <h3>Admin Login</h3>
+    </div>
+
+    <!-- Alert Messages -->
+    <div id="alertMessage" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <span id="alertText"></span>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 
     <form id="adminLoginForm">
@@ -146,13 +156,13 @@
 
       <!-- Links -->
       <div class="text-center mt-3">
-        <a href="#">Forgot Password?</a>
+        <a href="#" class="text-muted">Forgot Password?</a>
       </div>
 
       <hr>
 
       <div class="text-center">
-        <p>Don't have an account? <a href="admin-registration.html">Register here</a></p>
+        <p class="text-muted">Don't have an account? <a href="admin-registration.html">Register here</a></p>
       </div>
     </form>
   </div>
@@ -228,6 +238,21 @@
   </footer>
 
   <script>
+    // Show alert function
+    function showAlert(message, type = 'danger') {
+      const alert = document.getElementById('alertMessage');
+      const alertText = document.getElementById('alertText');
+      
+      alert.className = `alert alert-${type} alert-dismissible fade show`;
+      alertText.textContent = message;
+      alert.style.display = 'block';
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        alert.style.display = 'none';
+      }, 5000);
+    }
+
     const adminLoginForm = document.getElementById("adminLoginForm");
     const loginButton = adminLoginForm.querySelector("button[type='submit']");
     const buttonText = loginButton.querySelector(".button-text");
@@ -235,8 +260,14 @@
     adminLoginForm.addEventListener("submit", async function(e) {
       e.preventDefault();
 
-      const username = document.getElementById("adminUsername").value;
+      const username = document.getElementById("adminUsername").value.trim();
       const password = document.getElementById("adminPassword").value;
+
+      // Basic validation
+      if (!username || !password) {
+        showAlert("❌ Please enter both username and password");
+        return;
+      }
 
       loginButton.disabled = true;
       buttonText.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Logging...`;
@@ -251,20 +282,53 @@
         const result = await response.json();
 
         if (response.ok && result.success) {
-          alert("✅ Login successful");
-          window.location.href = "dashboard-admin.html";
+          showAlert("✅ Login successful! Redirecting...", "success");
+          
+          // 🔒 SECURITY: Store admin data in sessionStorage
+          sessionStorage.setItem('adminToken', result.token || 'admin-auth-token');
+          sessionStorage.setItem('adminUsername', username);
+          sessionStorage.setItem('adminLoginTime', new Date().getTime().toString());
+          sessionStorage.setItem('isAuthenticated', 'true');
+          
+          // Redirect after 1 second
+          setTimeout(() => {
+            window.location.href = "dashboard-admin.html";
+          }, 1000);
         } else {
-          alert("❌ " + (result.message || "Invalid Username or Password"));
+          showAlert("❌ " + (result.message || "Invalid Username or Password"));
           loginButton.disabled = false;
           buttonText.textContent = "Login";
         }
       } catch (err) {
         console.error("Error:", err);
-        alert("⚠️ Server error. Please try again.");
+        showAlert("⚠️ Server error. Please try again.");
         loginButton.disabled = false;
         buttonText.textContent = "Login";
       }
     });
+
+    // Check if user is already logged in
+    function checkExistingLogin() {
+      const isAuthenticated = sessionStorage.getItem('isAuthenticated');
+      const loginTime = sessionStorage.getItem('adminLoginTime');
+      
+      if (isAuthenticated === 'true' && loginTime) {
+        const currentTime = new Date().getTime();
+        const loginDuration = currentTime - parseInt(loginTime);
+        const eightHours = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+        
+        // If logged in within 8 hours, redirect to dashboard
+        if (loginDuration < eightHours) {
+          window.location.href = "dashboard-admin.html";
+        } else {
+          // Session expired
+          sessionStorage.clear();
+        }
+      }
+    }
+
+    // Run check when page loads
+    document.addEventListener('DOMContentLoaded', checkExistingLogin);
 
     document.getElementById("year").textContent = new Date().getFullYear();
   </script>
@@ -272,4 +336,3 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
