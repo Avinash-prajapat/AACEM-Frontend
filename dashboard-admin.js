@@ -3606,7 +3606,438 @@ async function viewClassAttendance(className) {
         showError('Failed to load class attendance: ' + error.message);
     }
 }
+// Global variables for contact messages
+let contactMessagesData = [];
+let currentContactMessageId = null;
 
+// Load contact messages
+async function loadContactMessages() {
+    try {
+        showLoading('contactMessagesContainer');
+        
+        const response = await fetch('http://localhost:5000/api/contact-messages');
+        const result = await response.json();
+        
+        if (result.success) {
+            contactMessagesData = result.messages || [];
+            updateContactMessagesTable();
+            updateContactMessageCounts();
+            showSuccess('Contact messages loaded successfully');
+        } else {
+            showError('Failed to load contact messages: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error loading contact messages:', error);
+        showError('Failed to load contact messages: ' + error.message);
+    } finally {
+        hideLoading('contactMessagesContainer');
+    }
+}
+
+// Update contact messages table
+function updateContactMessagesTable() {
+    const container = document.getElementById('contactMessagesContainer');
+    if (!container) return;
+    
+    if (contactMessagesData.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-envelope-open fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Contact Messages</h5>
+                <p class="text-muted">No contact messages have been received yet.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Contact Info</th>
+                        <th>Subject</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    contactMessagesData.forEach(message => {
+        const statusClass = getMessageStatusClass(message.status);
+        const messagePreview = message.message.length > 50 ? 
+            message.message.substring(0, 50) + '...' : message.message;
+        const date = new Date(message.created_at).toLocaleDateString('en-IN');
+        
+        html += `
+            <tr class="${message.status === 'new' ? 'table-warning' : ''}">
+                <td><strong>${message.contact_id}</strong></td>
+                <td>
+                    <strong>${message.full_name}</strong>
+                    ${message.status === 'new' ? '<span class="badge bg-danger ms-1">NEW</span>' : ''}
+                </td>
+                <td>
+                    <div><i class="fas fa-envelope me-1 text-primary"></i> ${message.email}</div>
+                    <div><i class="fas fa-phone me-1 text-success"></i> ${message.phone}</div>
+                </td>
+                <td>${message.subject}</td>
+                <td title="${message.message}">${messagePreview}</td>
+                <td>
+                    <span class="badge ${statusClass}">${message.status.toUpperCase()}</span>
+                </td>
+                <td>${date}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-info" onclick="viewContactMessage('${message.contact_id}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-success" onclick="updateMessageStatus('${message.contact_id}', 'replied')" title="Mark as Replied">
+                            <i class="fas fa-reply"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteContactMessage('${message.contact_id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Get message status class
+function getMessageStatusClass(status) {
+    switch (status) {
+        case 'new': return 'bg-danger';
+        case 'read': return 'bg-warning';
+        case 'replied': return 'bg-info';
+        case 'resolved': return 'bg-success';
+        default: return 'bg-secondary';
+    }
+}
+
+// Update message counts
+function updateContactMessageCounts() {
+    const totalCount = contactMessagesData.length;
+    const newCount = contactMessagesData.filter(msg => msg.status === 'new').length;
+    
+    // Update badge counts
+    const contactMessageCount = document.getElementById('contactMessageCount');
+    const newCountBadge = document.getElementById('newCount');
+    
+    if (contactMessageCount) {
+        contactMessageCount.textContent = totalCount;
+        contactMessageCount.style.display = totalCount > 0 ? 'inline' : 'none';
+    }
+    
+    if (newCountBadge) {
+        newCountBadge.textContent = newCount;
+    }
+}
+
+// View contact message details
+async function viewContactMessage(contactId) {
+    try {
+        const message = contactMessagesData.find(msg => msg.contact_id === contactId);
+        if (!message) {
+            showError('Message not found');
+            return;
+        }
+        
+        currentContactMessageId = contactId;
+        
+        const date = new Date(message.created_at).toLocaleString('en-IN');
+        const statusClass = getMessageStatusClass(message.status);
+        
+        const detailsHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-user me-2"></i>Contact Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> ${message.full_name}</p>
+                            <p><strong>Email:</strong> ${message.email}</p>
+                            <p><strong>Phone:</strong> ${message.phone}</p>
+                            <p><strong>Contact ID:</strong> ${message.contact_id}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Message Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Subject:</strong> ${message.subject}</p>
+                            <p><strong>Status:</strong> <span class="badge ${statusClass}">${message.status.toUpperCase()}</span></p>
+                            <p><strong>Date:</strong> ${date}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-envelope me-2"></i>Message Content</h6>
+                </div>
+                <div class="card-body">
+                    <div class="bg-light p-3 rounded">
+                        ${message.message.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('contactMessageDetails').innerHTML = detailsHtml;
+        
+        // Mark as read if it's new
+        if (message.status === 'new') {
+            await updateMessageStatus(contactId, 'read');
+        }
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('viewContactModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error viewing message:', error);
+        showError('Failed to load message details');
+    }
+}
+
+// Update message status
+async function updateMessageStatus(contactId, status) {
+    try {
+        const response = await fetch(`http://localhost:5000/api/contact-messages/${contactId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(`Message marked as ${status}`);
+            await loadContactMessages(); // Reload messages
+        } else {
+            showError('Failed to update status: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+        showError('Failed to update status');
+    }
+}
+
+// Delete contact message
+async function deleteContactMessage(contactId) {
+    if (!confirm('Are you sure you want to delete this contact message? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`http://localhost:5000/api/contact-messages/${contactId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('Message deleted successfully');
+            await loadContactMessages(); // Reload messages
+        } else {
+            showError('Failed to delete message: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        showError('Failed to delete message');
+    }
+}
+
+// Delete all read messages
+async function deleteAllReadMessages() {
+    const readMessages = contactMessagesData.filter(msg => 
+        msg.status === 'read' || msg.status === 'replied' || msg.status === 'resolved'
+    );
+    
+    if (readMessages.length === 0) {
+        showInfo('No read messages to delete');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${readMessages.length} read messages? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        let deletedCount = 0;
+        
+        for (const message of readMessages) {
+            const response = await fetch(`http://localhost:5000/api/contact-messages/${message.contact_id}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                deletedCount++;
+            }
+        }
+        
+        showSuccess(`Successfully deleted ${deletedCount} messages`);
+        await loadContactMessages(); // Reload messages
+        
+    } catch (error) {
+        console.error('Error deleting messages:', error);
+        showError('Failed to delete some messages');
+    }
+}
+
+// Filter messages
+function filterMessages(status) {
+    let filteredMessages = contactMessagesData;
+    
+    if (status !== 'all') {
+        filteredMessages = contactMessagesData.filter(msg => msg.status === status);
+    }
+    
+    // Update active filter button
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Update table with filtered data
+    updateFilteredMessagesTable(filteredMessages);
+}
+
+// Update filtered messages table
+function updateFilteredMessagesTable(messages) {
+    const container = document.getElementById('contactMessagesContainer');
+    if (!container) return;
+    
+    if (messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Messages Found</h5>
+                <p class="text-muted">No messages match the selected filter.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Same table generation code as updateContactMessagesTable but with filtered data
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Contact Info</th>
+                        <th>Subject</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    messages.forEach(message => {
+        const statusClass = getMessageStatusClass(message.status);
+        const messagePreview = message.message.length > 50 ? 
+            message.message.substring(0, 50) + '...' : message.message;
+        const date = new Date(message.created_at).toLocaleDateString('en-IN');
+        
+        html += `
+            <tr class="${message.status === 'new' ? 'table-warning' : ''}">
+                <td><strong>${message.contact_id}</strong></td>
+                <td>
+                    <strong>${message.full_name}</strong>
+                    ${message.status === 'new' ? '<span class="badge bg-danger ms-1">NEW</span>' : ''}
+                </td>
+                <td>
+                    <div><i class="fas fa-envelope me-1 text-primary"></i> ${message.email}</div>
+                    <div><i class="fas fa-phone me-1 text-success"></i> ${message.phone}</div>
+                </td>
+                <td>${message.subject}</td>
+                <td title="${message.message}">${messagePreview}</td>
+                <td>
+                    <span class="badge ${statusClass}">${message.status.toUpperCase()}</span>
+                </td>
+                <td>${date}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-info" onclick="viewContactMessage('${message.contact_id}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-success" onclick="updateMessageStatus('${message.contact_id}', 'replied')" title="Mark as Replied">
+                            <i class="fas fa-reply"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteContactMessage('${message.contact_id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Modal action functions
+function markAsReplied() {
+    if (currentContactMessageId) {
+        updateMessageStatus(currentContactMessageId, 'replied');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('viewContactModal'));
+        modal.hide();
+    }
+}
+
+function deleteCurrentMessage() {
+    if (currentContactMessageId) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('viewContactModal'));
+        modal.hide();
+        
+        setTimeout(() => {
+            deleteContactMessage(currentContactMessageId);
+        }, 300);
+    }
+}
+
+// Initialize contact messages when tab is shown
+document.addEventListener('DOMContentLoaded', function() {
+    const contactTab = document.getElementById('contact-tab');
+    if (contactTab) {
+        contactTab.addEventListener('shown.bs.tab', function() {
+            loadContactMessages();
+        });
+    }
+});
 // Add this helper function for info messages
 function showInfo(message) {
     const syncStatus = document.getElementById('syncStatus');
@@ -3622,6 +4053,7 @@ function showInfo(message) {
 }
 
 console.log('Dashboard JavaScript loaded successfully');
+
 
 
 
