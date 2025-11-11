@@ -84,7 +84,7 @@
     .studentCard {
       background-color: #fff;
       border-radius: 15px;
-      padding: 5px;
+      padding: 0px;
       margin-bottom: 25px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       transition: transform 0.2s, box-shadow 0.2s;
@@ -465,50 +465,50 @@
     });
 
     // Update session time display
-    function updateSessionTimeDisplay() {
-        const sessionTimeElement = document.createElement('div');
-        sessionTimeElement.id = 'sessionTimer';
-        sessionTimeElement.style.cssText = `
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: #28a745;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            z-index: 1000;
-        `;
+    // function updateSessionTimeDisplay() {
+    //     const sessionTimeElement = document.createElement('div');
+    //     sessionTimeElement.id = 'sessionTimer';
+    //     sessionTimeElement.style.cssText = `
+    //         position: fixed;
+    //         bottom: 10px;
+    //         right: 10px;
+    //         background: #28a745;
+    //         color: white;
+    //         padding: 5px 10px;
+    //         border-radius: 15px;
+    //         font-size: 12px;
+    //         z-index: 1000;
+    //     `;
         
-        function updateTime() {
-            const loginTime = parseInt(sessionStorage.getItem('loginTime'));
-            const currentTime = new Date().getTime();
-            const elapsed = currentTime - loginTime;
-            const remaining = SESSION_TIMEOUT - elapsed;
+    //     function updateTime() {
+    //         const loginTime = parseInt(sessionStorage.getItem('loginTime'));
+    //         const currentTime = new Date().getTime();
+    //         const elapsed = currentTime - loginTime;
+    //         const remaining = SESSION_TIMEOUT - elapsed;
             
-            if (remaining <= 0) {
-                logoutDueToTimeout();
-                return;
-            }
+    //         if (remaining <= 0) {
+    //             logoutDueToTimeout();
+    //             return;
+    //         }
             
-            const minutes = Math.floor(remaining / 60000);
-            const seconds = Math.floor((remaining % 60000) / 1000);
+    //         const minutes = Math.floor(remaining / 60000);
+    //         const seconds = Math.floor((remaining % 60000) / 1000);
             
-            sessionTimeElement.textContent = `Session: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    //         sessionTimeElement.textContent = `Session: ${minutes}:${seconds.toString().padStart(2, '0')}`;
             
-            // Change color when less than 5 minutes remaining
-            if (minutes < 5) {
-                sessionTimeElement.style.background = '#dc3545';
-            } else if (minutes < 10) {
-                sessionTimeElement.style.background = '#ffc107';
-                sessionTimeElement.style.color = '#000';
-            }
-        }
+    //         // Change color when less than 5 minutes remaining
+    //         if (minutes < 5) {
+    //             sessionTimeElement.style.background = '#dc3545';
+    //         } else if (minutes < 10) {
+    //             sessionTimeElement.style.background = '#ffc107';
+    //             sessionTimeElement.style.color = '#000';
+    //         }
+    //     }
         
-        document.body.appendChild(sessionTimeElement);
-        setInterval(updateTime, 1000);
-        updateTime();
-    }
+    //     document.body.appendChild(sessionTimeElement);
+    //     setInterval(updateTime, 1000);
+    //     updateTime();
+    // }
 
     // Update welcome message
     function updateWelcomeMessage() {
@@ -1052,4 +1052,5 @@
 </script>
 </body>
 </html>
+
 
