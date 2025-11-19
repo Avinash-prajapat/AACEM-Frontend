@@ -3615,7 +3615,7 @@ async function loadContactMessages() {
     try {
         showLoading('contactMessagesContainer');
         
-        const response = await fetch('http://localhost:5000/api/contact-messages');
+        const response = await fetch('https://aacem-backend.onrender.com/api/contact-messages');
         const result = await response.json();
         
         if (result.success) {
@@ -3822,7 +3822,7 @@ async function viewContactMessage(contactId) {
 // Update message status
 async function updateMessageStatus(contactId, status) {
     try {
-        const response = await fetch(`http://localhost:5000/api/contact-messages/${contactId}`, {
+        const response = await fetch(`https://aacem-backend.onrender.com/api/contact-messages/${contactId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -3851,7 +3851,7 @@ async function deleteContactMessage(contactId) {
     }
     
     try {
-        const response = await fetch(`http://localhost:5000/api/contact-messages/${contactId}`, {
+        const response = await fetch(`https://aacem-backend.onrender.com/api/contact-messages/${contactId}`, {
             method: 'DELETE'
         });
         
@@ -3888,7 +3888,7 @@ async function deleteAllReadMessages() {
         let deletedCount = 0;
         
         for (const message of readMessages) {
-            const response = await fetch(`http://localhost:5000/api/contact-messages/${message.contact_id}`, {
+            const response = await fetch(`https://aacem-backend.onrender.com/api/contact-messages/${message.contact_id}`, {
                 method: 'DELETE'
             });
             
@@ -4053,6 +4053,7 @@ function showInfo(message) {
 }
 
 console.log('Dashboard JavaScript loaded successfully');
+
 
 
 
